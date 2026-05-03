@@ -1,0 +1,27 @@
+{
+  "name": "@claw/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Prisma schema, generated client, and migrations for claw-cloud",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:push": "prisma db push",
+    "db:seed": "tsx src/seed.ts",
+    "db:studio": "prisma studio",
+    "clean": "rimraf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.14.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.14.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.4.0",
+    "rimraf": "^5.0.0"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ESNext"],
+    "strict": true,
+    "strictNullChecks": true,
+    "noImplicitAny": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true,
+    "incremental": true,
+    "paths": {
+      "@claw/db": ["./packages/db/src/index.ts"],
+      "@claw/common": ["./packages/common/src/index.ts"],
+      "@claw/billing": ["./packages/billing/src/index.ts"],
+      "@claw/mailer": ["./packages/mailer/src/index.ts"],
+      "@claw/infra": ["./packages/infra/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules"]
+}
