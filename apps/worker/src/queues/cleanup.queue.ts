@@ -1,36 +1,60 @@
-// Cleanup queue — removes expired trial workspaces, orphaned resources, and stale sessions
-import { Job } from 'bullmq';
-import { prisma } from '@claw/db';
+import { JOB_NAMES, QUEUE_NAMES } from '@claw/common';
+import { type QueueJob, type QueueDefinition } from './types.js';
 
 export interface CleanupJobData {
-  type: 'expired-trials' | 'orphan-resources' | 'stale-sessions';
+  type?: 'expired-trials' | 'orphan-resources' | 'stale-sessions';
+  workspaceId?: string;
 }
 
-export async function processJob(job: Job<CleanupJobData>): Promise<void> {
-  const { type } = job.data;
+export const cleanupQueue: QueueDefinition = {
+  name: QUEUE_NAMES.CLEANUP,
+  workerOptions: {
+    concurrency: 1,
+  },
+  defaultJobOptions: {
+    attempts: 3,
+    backoff: { type: 'fixed', delay: 2000 },
+    removeOnComplete: { age: 86400, count: 500 },
+    removeOnFail: { age: 30 * 86400, count: 2000 },
+  },
+  registerSchedules: async (queue) => {
+    await queue.upsertJobScheduler('cleanup-stale-sessions', { every: 5 * 60 * 1000 });
+    await queue.upsertJobScheduler('cleanup-expired-trials', { every: 60 * 60 * 1000 });
+  },
+  createProcessor: ({ prisma }) => async (job: QueueJob<CleanupJobData>) => {
+    const cleanupType =
+      job.data.type ??
+      (job.name.includes('stale-sessions')
+        ? 'stale-sessions'
+        : job.name.includes('expired-trials')
+          ? 'expired-trials'
+          : 'orphan-resources');
 
-  switch (type) {
-    case 'stale-sessions': {
-      const result = await prisma.session.deleteMany({
-        where: { expiresAt: { lt: new Date() } },
-      });
-      console.log(`Deleted ${result.count} expired sessions`);
-      break;
+    if (cleanupType === 'stale-sessions') {
+      await prisma.session.deleteMany({ where: { expiresAt: { lt: new Date() } } });
+      return;
     }
-    case 'expired-trials': {
-      const result = await prisma.workspace.updateMany({
+
+    if (cleanupType === 'expired-trials') {
+      await prisma.workspace.updateMany({
         where: {
+          status: 'ACTIVE',
           plan: 'FREE',
           trialEndsAt: { lt: new Date() },
-          status: 'ACTIVE',
         },
         data: { status: 'SUSPENDED' },
       });
-      console.log(`Suspended ${result.count} expired trial workspaces`);
-      break;
+      return;
     }
-    case 'orphan-resources':
-      console.log('Orphan resource GC: not yet implemented');
-      break;
-  }
-}
+
+    if (job.data.workspaceId) {
+      await prisma.instance.updateMany({
+        where: {
+          workspaceId: job.data.workspaceId,
+          status: { not: 'TERMINATED' },
+        },
+        data: { status: 'TERMINATED' },
+      });
+    }
+  },
+};
