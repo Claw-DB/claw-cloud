@@ -89,7 +89,7 @@ export class SamlService {
       callbackUrl: `${baseUrl}/auth/saml/${workspaceId}/callback`,
       entryPoint: config.entryPoint,
       issuer: config.issuer,
-      cert: config.cert,
+      idpCert: config.cert,
       audience: `${baseUrl}/auth/saml/${workspaceId}/metadata`,
     });
 

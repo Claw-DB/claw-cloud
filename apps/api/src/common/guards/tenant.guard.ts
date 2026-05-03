@@ -20,11 +20,11 @@ export class TenantGuard implements CanActivate {
       workspace?: unknown;
       membership?: unknown;
     }>();
-    const { workspaceId, slug } = request.params;
+    const { id, workspaceId, slug, workspaceSlug } = request.params;
     const user = request.user;
 
     const workspace = await this.prisma.workspace.findFirst({
-      where: workspaceId ? { id: workspaceId } : { slug },
+      where: id ?? workspaceId ? { id: id ?? workspaceId } : { slug: slug ?? workspaceSlug },
     });
     if (!workspace) throw new NotFoundException('Workspace not found');
 
