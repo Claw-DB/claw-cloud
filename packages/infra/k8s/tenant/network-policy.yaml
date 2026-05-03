@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tenant-default-deny
+  namespace: clawcloud-tenant
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: claw-cloud-gateway
+  egress:
+    - to:
+        - namespaceSelector: {}

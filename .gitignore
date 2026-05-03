@@ -11,3 +11,8 @@ coverage/
 .DS_Store
 Thumbs.db
 prisma/generated/
+
+# Playwright
+test-results/
+playwright-report/
+

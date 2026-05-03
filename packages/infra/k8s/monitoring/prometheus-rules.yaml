@@ -1,0 +1,23 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: claw-cloud-alerts
+  namespace: claw-cloud-system
+spec:
+  groups:
+    - name: claw-cloud-api
+      rules:
+        - alert: ApiErrorRateHigh
+          expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) > 0.03
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "API 5xx rate is above 3%"
+        - alert: WorkerQueueBacklog
+          expr: sum(bullmq_queue_waiting_jobs) > 500
+          for: 15m
+          labels:
+            severity: critical
+          annotations:
+            summary: "BullMQ queue backlog is above 500 jobs"
