@@ -1,6 +1,6 @@
-// Dev database seed script — populates initial data for LOCAL DEVELOPMENT ONLY
-// WARNING: This seed uses a weak hardcoded password. Never run against production.
-// For staging/production, use environment-specific seeding scripts with secure credentials.
+// Dev database seed script — populates initial data for LOCAL DEVELOPMENT ONLY.
+// The admin password is read from SEED_ADMIN_PASSWORD env var (with a dev-only fallback).
+// Never run this seed against production without setting a strong SEED_ADMIN_PASSWORD.
 import { prisma } from './index.js';
 import * as bcrypt from 'bcrypt';
 

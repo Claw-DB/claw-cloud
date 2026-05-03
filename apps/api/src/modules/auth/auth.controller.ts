@@ -137,7 +137,7 @@ export class AuthController {
   ) {
     const { token } = req.user;
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+    res.redirect(`${frontendUrl}/auth/callback?token=${encodeURIComponent(token)}`);
   }
 
   // ─── OAuth: Google ────────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ export class AuthController {
   ) {
     const { token } = req.user;
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/callback?token=${token}`);
+    res.redirect(`${frontendUrl}/auth/callback?token=${encodeURIComponent(token)}`);
   }
 
   // ─── Magic Link ───────────────────────────────────────────────────────────
