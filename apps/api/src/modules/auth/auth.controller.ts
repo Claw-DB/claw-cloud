@@ -200,9 +200,9 @@ export class AuthController {
       ipAddress: req.ip,
     });
 
-    // We need to sign the JWT — delegate to auth service via a helper approach
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-    // Session token is used here; the real JWT is signed inside the service
-    res.redirect(`${frontendUrl}/auth/callback?session=${session.token}`);
+    // Encode session token to prevent header injection in redirect
+    const encodedToken = encodeURIComponent(session.token);
+    res.redirect(`${frontendUrl}/auth/callback?session=${encodedToken}`);
   }
 }

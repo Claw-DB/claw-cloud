@@ -24,7 +24,9 @@ export class AuthService {
 
   /**
    * Register a new user with email and password.
-   * Password is hashed with bcrypt (rounds=12) and then zeroized from memory.
+   * Password is hashed with bcrypt (rounds=12).
+   * Note: JavaScript strings are immutable and managed by the V8 GC, so true
+   * in-memory zeroization of string values is not possible in Node.js.
    */
   async register(
     email: string,
@@ -35,10 +37,7 @@ export class AuthService {
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email is already registered');
 
-    // Hash the password and zeroize the plaintext from memory
-    const passwordBuf = Buffer.from(password, 'utf8');
     const hash = await bcrypt.hash(password, BCRYPT_ROUNDS);
-    passwordBuf.fill(0);
 
     const user = await this.prisma.user.create({
       data: { email, name, passwordHash: hash },
@@ -132,6 +131,8 @@ export class AuthService {
 
     const passwordBuf = Buffer.from(newPassword, 'utf8');
     const hash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    // Overwrite the buffer; note JS string immutability means we cannot fully
+    // zeroize the original string, but we minimize exposure via buffer use.
     passwordBuf.fill(0);
 
     await this.prisma.user.update({

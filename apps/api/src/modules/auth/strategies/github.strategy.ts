@@ -27,7 +27,7 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
     done: (err: Error | null, user: unknown) => void,
   ): Promise<void> {
     const email =
-      profile.emails?.[0]?.value ?? `${profile.id}@github.noreply.example`;
+      profile.emails?.[0]?.value ?? `${profile.id}@noreply.claw.cloud`;
     const name = profile.displayName ?? profile.username ?? 'GitHub User';
     const avatarUrl = profile.photos?.[0]?.value;
 

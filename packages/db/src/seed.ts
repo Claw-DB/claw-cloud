@@ -1,12 +1,14 @@
-// Dev database seed script — populates initial data for local development
+// Dev database seed script — populates initial data for LOCAL DEVELOPMENT ONLY
+// WARNING: This seed uses a weak hardcoded password. Never run against production.
+// For staging/production, use environment-specific seeding scripts with secure credentials.
 import { prisma } from './index.js';
 import * as bcrypt from 'bcrypt';
 
 async function main() {
-  console.log('🌱 Seeding database...');
+  console.log('🌱 Seeding database (LOCAL DEV ONLY)...');
 
-  // Create admin user
-  const passwordHash = await bcrypt.hash('admin1234', 12);
+  const devPassword = process.env.SEED_ADMIN_PASSWORD ?? 'dev-only-change-me-in-prod!';
+  const passwordHash = await bcrypt.hash(devPassword, 12);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@claw.cloud' },
     update: {},

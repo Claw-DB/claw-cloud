@@ -75,7 +75,9 @@ export class SamlController {
     });
 
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/callback?session=${session.token}`);
+    // Encode the session token to prevent header injection in redirect
+    const encodedToken = encodeURIComponent(session.token);
+    res.redirect(`${frontendUrl}/auth/callback?session=${encodedToken}`);
   }
 
   // ─── SAML Config Management ───────────────────────────────────────────────
@@ -122,9 +124,15 @@ export class SamlController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '[DEV ONLY] Simulate IdP assertion for testing' })
   async testAssertion(@Body() body: { workspaceId: string; email: string; name: string }) {
-    if (process.env.NODE_ENV === 'production') {
+    // This endpoint is completely disabled outside of development environments
+    if (process.env.NODE_ENV !== 'development') {
       throw new NotFoundException();
     }
-    return { message: 'Test SAML assertion endpoint', ...body };
+    return {
+      message: 'Test SAML assertion endpoint (dev only)',
+      workspaceId: body.workspaceId,
+      email: body.email,
+      name: body.name,
+    };
   }
 }

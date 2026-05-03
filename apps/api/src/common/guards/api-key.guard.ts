@@ -27,6 +27,9 @@ export class ApiKeyGuard implements CanActivate {
     const rawKey = request.headers['x-api-key'];
     if (!rawKey) throw new UnauthorizedException('API key required');
 
+    // API keys are high-entropy random secrets (not low-entropy passwords).
+    // SHA-256 is appropriate here for indexed lookup; bcrypt is not needed for
+    // random 256-bit keys since they already have sufficient entropy.
     const keyHash = crypto.createHash('sha256').update(rawKey).digest('hex');
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { keyHash },
