@@ -11,7 +11,7 @@
     "clean": "rimraf dist tsconfig.tsbuildinfo"
   },
   "dependencies": {
-    "stripe": "^15.0.0",
+    "stripe": "^14.25.0",
     "@claw/common": "workspace:*"
   },
   "devDependencies": {

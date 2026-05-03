@@ -118,6 +118,7 @@ model User {
   oauthAccounts     OAuthAccount[]
   sentInvitations   Invitation[]      @relation("InvitedBy")
   auditLogs         AuditLog[]        @relation("AuditActor")
+  scimIdentities    ScimIdentity[]
 
   @@map("users")
 }
@@ -164,6 +165,7 @@ model Workspace {
   trialEndsAt  DateTime?
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
+  auditSecret  String?
   metadata     Json            @default("{}")
 
   owner               User                  @relation("WorkspaceOwner", fields: [ownerId], references: [id])
@@ -173,10 +175,12 @@ model Workspace {
   billingSubscription BillingSubscription?
   invitations         Invitation[]
   webhooks            Webhook[]
+  webhookDeliveries   WebhookDelivery[]
   auditLogs           AuditLog[]
   usageRecords        UsageRecord[]
   invoices            Invoice[]
   scimToken           ScimToken?
+  scimIdentities      ScimIdentity[]
   samlConfig          SamlConfig?
 
   @@map("workspaces")
@@ -188,6 +192,7 @@ model WorkspaceMember {
   workspaceId String     @db.Uuid
   userId      String     @db.Uuid
   role        MemberRole @default(DEVELOPER)
+  active      Boolean    @default(true)
   joinedAt    DateTime   @default(now())
   invitedBy   String?    @db.Uuid
 
@@ -259,6 +264,8 @@ model Backup {
   storageKey   String?
   startedAt    DateTime?
   completedAt  DateTime?
+  restoreCompletedAt DateTime?
+  restoredToInstanceId String? @db.Uuid
   expiresAt    DateTime?
   metadata     Json         @default("{}")
 
@@ -365,15 +372,37 @@ model Webhook {
   id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workspaceId         String    @db.Uuid
   url                 String
-  secret              String
+  secretHash          String
   events              String[]
   enabled             Boolean   @default(true)
   lastDeliveryAt      DateTime?
   lastDeliveryStatus  String?
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
 
   @@map("webhooks")
+}
+
+model WebhookDelivery {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  webhookId      String   @db.Uuid
+  workspaceId    String   @db.Uuid
+  event          String
+  payload        Json
+  status         String
+  attemptCount   Int      @default(0)
+  responseStatus Int?
+  responseBody   String?
+  lastAttemptAt  DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  webhook   Webhook   @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([webhookId, createdAt])
+  @@map("webhook_deliveries")
 }
 
 /// Immutable audit trail entry
@@ -385,6 +414,7 @@ model AuditLog {
   action       String
   resourceType String
   resourceId   String?
+  signature    String?
   metadata     Json      @default("{}")
   ipAddress    String?
   createdAt    DateTime  @default(now())
@@ -406,6 +436,23 @@ model ScimToken {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("scim_tokens")
+}
+
+model ScimIdentity {
+  id          String   @id @default(cuid())
+  workspaceId String   @db.Uuid
+  userId      String   @db.Uuid
+  scimId      String
+  externalId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, scimId])
+  @@unique([workspaceId, userId])
+  @@map("scim_identities")
 }
 
 /// SAML SSO configuration for enterprise workspaces

@@ -51,3 +51,10 @@ export class PlanLimitError extends CloudError {
     this.name = 'PlanLimitError';
   }
 }
+
+export class CloudBillingError extends CloudError {
+  constructor(code: string, message: string, statusCode = 502) {
+    super(code, message, statusCode);
+    this.name = 'CloudBillingError';
+  }
+}
