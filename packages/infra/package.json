@@ -1,0 +1,17 @@
+{
+  "name": "@claw/infra",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pulumi/Terraform IaC helpers for claw-cloud infrastructure",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "type-check": "tsc --noEmit",
+    "clean": "rimraf dist tsconfig.tsbuildinfo"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "rimraf": "^5.0.0"
+  }
+}

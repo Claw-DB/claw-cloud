@@ -1,0 +1,27 @@
+{
+  "name": "@claw/admin",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Next.js internal admin panel for claw-cloud operations",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev -p 3001",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit",
+    "clean": "rimraf .next tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "next": "^15.5.15",
+    "react": "^18.3.0",
+    "react-dom": "^18.3.0",
+    "@claw/common": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "typescript": "^5.4.0",
+    "rimraf": "^5.0.0"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "claw-cloud",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Managed hosted platform for ClawDB",
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
+    "clean": "rimraf .turbo && turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "latest",
+    "typescript": "^5.4.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "vitest": "^1.6.0",
+    "@types/node": "^20.0.0",
+    "tsx": "^4.0.0",
+    "rimraf": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=20.14.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@9.0.0"
+}

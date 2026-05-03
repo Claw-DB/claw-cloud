@@ -1,0 +1,424 @@
+// Complete Prisma schema for claw-cloud managed ClawDB platform
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  directUrl         = env("DIRECT_DATABASE_URL")
+  extensions        = [pgcrypto, pg_trgm, uuidOssp(map: "uuid-ossp"), citext]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "postgresqlExtensions"]
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum OAuthProvider {
+  GITHUB
+  GOOGLE
+}
+
+enum WorkspacePlan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+enum WorkspaceStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  DEVELOPER
+  READONLY
+}
+
+enum InstanceRegion {
+  US_EAST
+  US_WEST
+  EU_WEST
+  EU_CENTRAL
+  APAC_EAST
+}
+
+enum InstanceStatus {
+  PROVISIONING
+  RUNNING
+  SCALING
+  PAUSED
+  TERMINATING
+  TERMINATED
+  ERROR
+}
+
+enum InstanceTier {
+  NANO
+  MICRO
+  SMALL
+  MEDIUM
+  LARGE
+  XL
+}
+
+enum BackupStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+enum BackupType {
+  SCHEDULED
+  MANUAL
+}
+
+enum ReplicationStatus {
+  ACTIVE
+  PAUSED
+  LAGGING
+  BROKEN
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+}
+
+enum ActorType {
+  USER
+  API_KEY
+  SYSTEM
+}
+
+// ─── Models ──────────────────────────────────────────────────────────────────
+
+/// Platform user account
+model User {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email         String    @unique @db.Citext
+  emailVerified DateTime?
+  name          String
+  avatarUrl     String?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspaceMembers  WorkspaceMember[]
+  ownedWorkspaces   Workspace[]       @relation("WorkspaceOwner")
+  sessions          Session[]
+  apiKeys           ApiKey[]
+  oauthAccounts     OAuthAccount[]
+  sentInvitations   Invitation[]      @relation("InvitedBy")
+  auditLogs         AuditLog[]        @relation("AuditActor")
+
+  @@map("users")
+}
+
+/// User authentication session
+model Session {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @db.Uuid
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  userAgent String?
+  ipAddress String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+/// Linked OAuth provider account
+model OAuthAccount {
+  id                String        @id @default(cuid())
+  userId            String        @db.Uuid
+  provider          OAuthProvider
+  providerAccountId String
+  accessToken       String?
+  refreshToken      String?
+  scope             String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("oauth_accounts")
+}
+
+/// Tenant workspace — the top-level isolation boundary
+model Workspace {
+  id           String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug         String          @unique @db.Citext
+  name         String
+  ownerId      String          @db.Uuid
+  plan         WorkspacePlan   @default(FREE)
+  status       WorkspaceStatus @default(ACTIVE)
+  trialEndsAt  DateTime?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  metadata     Json            @default("{}")
+
+  owner               User                  @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  members             WorkspaceMember[]
+  instances           Instance[]
+  apiKeys             ApiKey[]
+  billingSubscription BillingSubscription?
+  invitations         Invitation[]
+  webhooks            Webhook[]
+  auditLogs           AuditLog[]
+  usageRecords        UsageRecord[]
+  invoices            Invoice[]
+  scimToken           ScimToken?
+  samlConfig          SamlConfig?
+
+  @@map("workspaces")
+}
+
+/// Workspace membership with role-based access
+model WorkspaceMember {
+  id          String     @id @default(cuid())
+  workspaceId String     @db.Uuid
+  userId      String     @db.Uuid
+  role        MemberRole @default(DEVELOPER)
+  joinedAt    DateTime   @default(now())
+  invitedBy   String?    @db.Uuid
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+/// Pending workspace invitation via email
+model Invitation {
+  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String     @db.Uuid
+  email       String     @db.Citext
+  role        MemberRole @default(DEVELOPER)
+  token       String     @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  invitedById String     @db.Uuid
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy User      @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  @@map("invitations")
+}
+
+/// Hosted ClawDB instance running in a Kubernetes pod
+model Instance {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId       String         @db.Uuid
+  name              String
+  slug              String
+  region            InstanceRegion
+  status            InstanceStatus @default(PROVISIONING)
+  tier              InstanceTier   @default(NANO)
+  version           String
+  endpoint          String?
+  grpcPort          Int?
+  httpPort          Int?
+  storageGb         Int            @default(10)
+  memoryMb          Int            @default(512)
+  cpuMillicores     Int            @default(250)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  lastHealthCheckAt DateTime?
+  podName           String?
+  kubeNamespace     String?
+  metadata          Json           @default("{}")
+
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  backups          Backup[]
+  replicationLinks ReplicationLink[] @relation("SourceInstance")
+  replicationTargets ReplicationLink[] @relation("TargetInstance")
+  usageRecords     UsageRecord[]
+
+  @@unique([workspaceId, slug])
+  @@map("instances")
+}
+
+/// Point-in-time backup of a ClawDB instance
+model Backup {
+  id           String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  instanceId   String       @db.Uuid
+  workspaceId  String       @db.Uuid
+  status       BackupStatus @default(PENDING)
+  type         BackupType   @default(SCHEDULED)
+  storageBytes BigInt       @default(0)
+  storageKey   String?
+  startedAt    DateTime?
+  completedAt  DateTime?
+  expiresAt    DateTime?
+  metadata     Json         @default("{}")
+
+  instance Instance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@map("backups")
+}
+
+/// Cross-region replication link between instances
+model ReplicationLink {
+  id               String            @id @default(cuid())
+  sourceInstanceId String            @db.Uuid
+  targetInstanceId String            @db.Uuid
+  region           InstanceRegion
+  status           ReplicationStatus @default(ACTIVE)
+  lagMs            Int?
+  lastSyncAt       DateTime?
+
+  sourceInstance Instance @relation("SourceInstance", fields: [sourceInstanceId], references: [id], onDelete: Cascade)
+  targetInstance Instance @relation("TargetInstance", fields: [targetInstanceId], references: [id], onDelete: Cascade)
+
+  @@map("replication_links")
+}
+
+/// Stripe billing subscription for a workspace
+model BillingSubscription {
+  id                   String             @id @default(cuid())
+  workspaceId          String             @unique @db.Uuid
+  stripeCustomerId     String             @unique
+  stripeSubscriptionId String?
+  stripePriceId        String?
+  status               SubscriptionStatus @default(TRIALING)
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  metadata             Json               @default("{}")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("billing_subscriptions")
+}
+
+/// Monthly usage record for metering and billing
+model UsageRecord {
+  id              String   @id @default(cuid())
+  workspaceId     String   @db.Uuid
+  instanceId      String   @db.Uuid
+  period          DateTime
+  memoryOpsCount  BigInt   @default(0)
+  storageGbHours  Float    @default(0)
+  vectorOpsCount  BigInt   @default(0)
+  syncOpsCount    BigInt   @default(0)
+  bandwidthGb     Float    @default(0)
+  reflectJobsCount Int     @default(0)
+  computeMinutes  Int      @default(0)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  instance  Instance  @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, instanceId, period])
+  @@map("usage_records")
+}
+
+/// Stripe invoice record
+model Invoice {
+  id              String   @id @default(cuid())
+  workspaceId     String   @db.Uuid
+  stripeInvoiceId String   @unique
+  status          String
+  amountCents     Int
+  currency        String   @default("usd")
+  periodStart     DateTime
+  periodEnd       DateTime
+  pdfUrl          String?
+  createdAt       DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("invoices")
+}
+
+/// Scoped API key for programmatic access
+model ApiKey {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String    @db.Uuid
+  createdById String    @db.Uuid
+  name        String
+  keyHash     String    @unique
+  keyPrefix   String    @db.Char(8)
+  scopes      String[]
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy   User      @relation(fields: [createdById], references: [id])
+
+  @@map("api_keys")
+}
+
+/// Outbound webhook endpoint for customer event notifications
+model Webhook {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId         String    @db.Uuid
+  url                 String
+  secret              String
+  events              String[]
+  enabled             Boolean   @default(true)
+  lastDeliveryAt      DateTime?
+  lastDeliveryStatus  String?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("webhooks")
+}
+
+/// Immutable audit trail entry
+model AuditLog {
+  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId  String    @db.Uuid
+  actorId      String?
+  actorType    ActorType @default(USER)
+  action       String
+  resourceType String
+  resourceId   String?
+  metadata     Json      @default("{}")
+  ipAddress    String?
+  createdAt    DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor     User?     @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+/// SCIM provisioning token for enterprise SSO
+model ScimToken {
+  id          String    @id @default(cuid())
+  workspaceId String    @unique @db.Uuid
+  tokenHash   String
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("scim_tokens")
+}
+
+/// SAML SSO configuration for enterprise workspaces
+model SamlConfig {
+  id               String   @id @default(cuid())
+  workspaceId      String   @unique @db.Uuid
+  entryPoint       String
+  issuer           String
+  cert             String
+  attributeMapping Json     @default("{}")
+  createdAt        DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("saml_configs")
+}

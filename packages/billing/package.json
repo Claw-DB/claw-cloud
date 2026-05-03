@@ -1,0 +1,21 @@
+{
+  "name": "@claw/billing",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Stripe integration module for claw-cloud billing",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "type-check": "tsc --noEmit",
+    "clean": "rimraf dist tsconfig.tsbuildinfo"
+  },
+  "dependencies": {
+    "stripe": "^15.0.0",
+    "@claw/common": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "rimraf": "^5.0.0"
+  }
+}
