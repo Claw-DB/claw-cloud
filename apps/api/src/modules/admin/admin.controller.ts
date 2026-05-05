@@ -1,4 +1,4 @@
-import { Controller, Get, ParseIntPipe, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query, UseGuards, Post } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { AdminGuard } from './admin.guard.js';
@@ -68,5 +68,17 @@ export class AdminController {
   @ApiOperation({ summary: 'Get top-level platform risk flags' })
   async flags() {
     return this.adminService.listPlatformFlags();
+  }
+
+  @Post('workspaces/:workspaceId/suspend')
+  @ApiOperation({ summary: 'Suspend a workspace' })
+  async suspendWorkspace(@Param('workspaceId') workspaceId: string) {
+    return this.adminService.suspendWorkspace(workspaceId);
+  }
+
+  @Post('workspaces/:workspaceId/reactivate')
+  @ApiOperation({ summary: 'Reactivate a suspended workspace' })
+  async reactivateWorkspace(@Param('workspaceId') workspaceId: string) {
+    return this.adminService.reactivateWorkspace(workspaceId);
   }
 }

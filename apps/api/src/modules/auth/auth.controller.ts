@@ -15,6 +15,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service.js';
@@ -27,14 +28,22 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import {
   RegisterDto,
   LoginDto,
+  VerifyTotpDto,
+  RefreshTokenDto,
   ForgotPasswordDto,
   ResetPasswordDto,
   MagicLinkDto,
+  ConfirmTotpDto,
+  DisableTotpDto,
   RegisterDtoType,
   LoginDtoType,
+  VerifyTotpDtoType,
+  RefreshTokenDtoType,
   ForgotPasswordDtoType,
   ResetPasswordDtoType,
   MagicLinkDtoType,
+  ConfirmTotpDtoType,
+  DisableTotpDtoType,
 } from '@claw/common';
 import { User } from '@prisma/client';
 
@@ -49,6 +58,7 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({ summary: 'Register a new user account' })
   async register(
     @Body(new ZodValidationPipe(RegisterDto)) body: RegisterDtoType,
@@ -61,6 +71,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Authenticate with email and password' })
   async login(
@@ -73,16 +84,41 @@ export class AuthController {
     });
   }
 
+  @Post('verify-totp')
+  @Throttle({ default: { limit: 12, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Complete login with a TOTP challenge code' })
+  async verifyTotp(
+    @Body(new ZodValidationPipe(VerifyTotpDto)) body: VerifyTotpDtoType,
+    @Req() req: Request,
+  ) {
+    return this.authService.verifyTotp(body.tempToken, body.code, {
+      userAgent: req.headers['user-agent'],
+      ipAddress: req.ip,
+    });
+  }
+
+  @Post('refresh')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Exchange refresh token for a new access token pair' })
+  async refresh(
+    @Body(new ZodValidationPipe(RefreshTokenDto)) body: RefreshTokenDtoType,
+  ) {
+    return this.authService.refreshTokens(body.refreshToken);
+  }
+
   @Post('logout')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Invalidate current session' })
-  async logout(@CurrentUser() user: User & { sessionId: string }) {
-    await this.authService.logout(user.sessionId);
+  @ApiOperation({ summary: 'Invalidate a refresh-token-backed session' })
+  async logout(
+    @Body(new ZodValidationPipe(RefreshTokenDto)) body: RefreshTokenDtoType,
+  ) {
+    await this.authService.logoutByRefreshToken(body.refreshToken);
   }
 
   @Post('forgot-password')
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request a password reset email' })
   async forgotPassword(
@@ -94,6 +130,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Throttle({ default: { limit: 8, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset password using a secure token' })
   async resetPassword(
@@ -115,8 +152,52 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Return the currently authenticated user' })
   async me(@CurrentUser() user: User) {
-    const { passwordHash: _, ...safeUser } = user as User & { passwordHash?: string };
+    const {
+      passwordHash: _,
+      totpSecret: __,
+      failedLoginAttempts: ___,
+      lockedUntil: ____,
+      ...safeUser
+    } = user as User & {
+      passwordHash?: string;
+      totpSecret?: string;
+      failedLoginAttempts?: number;
+      lockedUntil?: Date | null;
+    };
     return safeUser;
+  }
+
+  @Post('enable-totp')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Generate TOTP secret and QR data for current user' })
+  async enableTotp(@CurrentUser() user: User) {
+    return this.authService.enableTotp(user.id);
+  }
+
+  @Post('confirm-totp')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Confirm and enable TOTP using a one-time code' })
+  async confirmTotp(
+    @CurrentUser() user: User,
+    @Body(new ZodValidationPipe(ConfirmTotpDto)) body: ConfirmTotpDtoType,
+  ) {
+    return this.authService.confirmTotp(user.id, body.code);
+  }
+
+  @Post('disable-totp')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Disable TOTP after validating a one-time code' })
+  async disableTotp(
+    @CurrentUser() user: User,
+    @Body(new ZodValidationPipe(DisableTotpDto)) body: DisableTotpDtoType,
+  ) {
+    return this.authService.disableTotp(user.id, body.code);
   }
 
   // ─── OAuth: GitHub ────────────────────────────────────────────────────────
@@ -132,12 +213,17 @@ export class AuthController {
   @UseGuards(AuthGuard('github'))
   @ApiOperation({ summary: 'GitHub OAuth callback — issues JWT and redirects to dashboard' })
   async githubCallback(
-    @Req() req: Request & { user: { user: User; token: string } },
+    @Req()
+    req: Request & {
+      user: { requiresTotp: false; user: User; tokens: { accessToken: string; refreshToken: string } };
+    },
     @Res() res: Response,
   ) {
-    const { token } = req.user;
+    const { accessToken, refreshToken } = req.user.tokens;
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/callback?token=${encodeURIComponent(token)}`);
+    res.redirect(
+      `${frontendUrl}/auth/callback?token=${encodeURIComponent(accessToken)}&refresh=${encodeURIComponent(refreshToken)}`,
+    );
   }
 
   // ─── OAuth: Google ────────────────────────────────────────────────────────
@@ -153,17 +239,23 @@ export class AuthController {
   @UseGuards(AuthGuard('google'))
   @ApiOperation({ summary: 'Google OAuth callback — issues JWT and redirects to dashboard' })
   async googleCallback(
-    @Req() req: Request & { user: { user: User; token: string } },
+    @Req()
+    req: Request & {
+      user: { requiresTotp: false; user: User; tokens: { accessToken: string; refreshToken: string } };
+    },
     @Res() res: Response,
   ) {
-    const { token } = req.user;
+    const { accessToken, refreshToken } = req.user.tokens;
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-    res.redirect(`${frontendUrl}/auth/callback?token=${encodeURIComponent(token)}`);
+    res.redirect(
+      `${frontendUrl}/auth/callback?token=${encodeURIComponent(accessToken)}&refresh=${encodeURIComponent(refreshToken)}`,
+    );
   }
 
   // ─── Magic Link ───────────────────────────────────────────────────────────
 
   @Post('magic-link')
+  @Throttle({ default: { limit: 6, ttl: 60_000 } })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request a passwordless magic-link login email' })
   async requestMagicLink(
@@ -176,6 +268,7 @@ export class AuthController {
   }
 
   @Get('magic-link/verify')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @ApiOperation({ summary: 'Verify magic-link token and issue a JWT' })
   async verifyMagicLink(
     @Query('token') token: string,
@@ -200,9 +293,10 @@ export class AuthController {
       ipAddress: req.ip,
     });
 
+    const accessToken = this.authService.issueAccessToken(user.id, session.id);
     const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
-    // Encode session token to prevent header injection in redirect
-    const encodedToken = encodeURIComponent(session.token);
-    res.redirect(`${frontendUrl}/auth/callback?session=${encodedToken}`);
+    const encodedToken = encodeURIComponent(accessToken);
+    const encodedRefresh = encodeURIComponent(session.token);
+    res.redirect(`${frontendUrl}/auth/callback?token=${encodedToken}&refresh=${encodedRefresh}`);
   }
 }

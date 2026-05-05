@@ -28,6 +28,7 @@ import { RequireRole } from '../../common/decorators/require-role.decorator.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BillingService } from './billing.service.js';
+import { UsageService } from './usage.service.js';
 
 @ApiTags('billing')
 @Controller('billing')
@@ -35,12 +36,13 @@ export class BillingController {
   constructor(
     private readonly billingService: BillingService,
     private readonly prisma: PrismaService,
+    private readonly usageService: UsageService,
   ) {}
 
   @Post('checkout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a Stripe checkout session' })
+  @ApiOperation({ summary: 'Create a Lemon checkout session' })
   async checkout(
     @CurrentUser() user: User,
     @Body(new ZodValidationPipe(BillingCheckoutDto)) dto: BillingCheckoutDtoType,
@@ -57,7 +59,7 @@ export class BillingController {
   @Post('portal')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create a Stripe billing portal session' })
+  @ApiOperation({ summary: 'Create a Lemon billing portal session' })
   async portal(
     @CurrentUser() user: User,
     @Body(new ZodValidationPipe(BillingPortalDto)) dto: BillingPortalDtoType,
@@ -84,6 +86,33 @@ export class BillingController {
     return this.billingService.getInvoices(workspaceId);
   }
 
+  @Get('usage/:workspaceId')
+  @UseGuards(JwtAuthGuard, TenantGuard, WorkspaceRoleGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get workspace usage summary for current period' })
+  async usage(@Param('workspaceId') workspaceId: string) {
+    const now = new Date();
+    const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+    const records = await this.usageService.getUsageForPeriod(workspaceId, periodStart);
+
+    const totals = records.reduce(
+      (acc, record) => ({
+        memoryOps: acc.memoryOps + Number(record.memoryOpsCount),
+        syncRounds: acc.syncRounds + Number(record.syncOpsCount),
+        storageGb: acc.storageGb + Number(record.storageGbHours),
+        bandwidthGb: acc.bandwidthGb + Number(record.bandwidthGb),
+      }),
+      { memoryOps: 0, syncRounds: 0, storageGb: 0, bandwidthGb: 0 },
+    );
+
+    return {
+      ...totals,
+      periodStart: periodStart.toISOString(),
+      periodEnd: periodEnd.toISOString(),
+    };
+  }
+
   @Post('subscription/:workspaceId/cancel')
   @UseGuards(JwtAuthGuard, TenantGuard, WorkspaceRoleGuard)
   @RequireRole('OWNER')
@@ -98,8 +127,8 @@ export class BillingController {
   }
 
   @Post('webhook')
-  @ApiOperation({ summary: 'Stripe webhook endpoint' })
-  async webhook(@Req() req: Request & { rawBody?: Buffer }, @Headers('stripe-signature') signature: string) {
+  @ApiOperation({ summary: 'Lemon webhook endpoint' })
+  async webhook(@Req() req: Request & { rawBody?: Buffer }, @Headers('x-signature') signature: string) {
     await this.billingService.handleWebhook(req.rawBody ?? Buffer.from(''), signature);
     return { received: true };
   }

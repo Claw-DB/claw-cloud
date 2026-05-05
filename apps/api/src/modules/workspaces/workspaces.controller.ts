@@ -12,6 +12,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import {
   CreateWorkspaceDto,
   CreateWorkspaceDtoType,
@@ -98,6 +99,7 @@ export class WorkspacesController {
   }
 
   @Post('workspaces/:id/members/invite')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @UseGuards(JwtAuthGuard, TenantGuard, WorkspaceRoleGuard)
   @RequireRole('OWNER', 'ADMIN')
   @ApiBearerAuth()

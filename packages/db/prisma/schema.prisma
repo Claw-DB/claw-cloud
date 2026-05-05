@@ -98,6 +98,17 @@ enum ActorType {
   SYSTEM
 }
 
+enum NotificationType {
+  USAGE_ALERT
+  PAYMENT_FAILED
+  INVITE_ACCEPTED
+  KEY_REVOKED
+  SYNC_ERROR
+  POLICY_DENIED
+  SYSTEM
+  INFO
+}
+
 // ─── Models ──────────────────────────────────────────────────────────────────
 
 /// Platform user account
@@ -108,6 +119,11 @@ model User {
   name          String
   avatarUrl     String?
   passwordHash  String?
+  totpSecret    String?
+  totpEnabled   Boolean   @default(false)
+  failedLoginAttempts Int @default(0)
+  lockedUntil   DateTime?
+  lastLoginAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -179,6 +195,7 @@ model Workspace {
   auditLogs           AuditLog[]
   usageRecords        UsageRecord[]
   invoices            Invoice[]
+  notifications       Notification[]
   scimToken           ScimToken?
   scimIdentities      ScimIdentity[]
   samlConfig          SamlConfig?
@@ -290,7 +307,7 @@ model ReplicationLink {
   @@map("replication_links")
 }
 
-/// Stripe billing subscription for a workspace
+/// Billing subscription for a workspace (legacy Stripe column names retained)
 model BillingSubscription {
   id                   String             @id @default(cuid())
   workspaceId          String             @unique @db.Uuid
@@ -329,7 +346,7 @@ model UsageRecord {
   @@map("usage_records")
 }
 
-/// Stripe invoice record
+/// Billing invoice record (legacy Stripe column names retained)
 model Invoice {
   id              String   @id @default(cuid())
   workspaceId     String   @db.Uuid
@@ -409,7 +426,7 @@ model WebhookDelivery {
 model AuditLog {
   id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   workspaceId  String    @db.Uuid
-  actorId      String?
+  actorId      String?   @db.Uuid
   actorType    ActorType @default(USER)
   action       String
   resourceType String
@@ -468,4 +485,37 @@ model SamlConfig {
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@map("saml_configs")
+}
+
+/// In-app notification for workspace users
+model Notification {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  workspaceId String           @db.Uuid
+  userId      String?          @db.Uuid
+  type        NotificationType
+  title       String
+  body        String
+  read        Boolean          @default(false)
+  metadata    Json?
+  createdAt   DateTime         @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+/// Chat message history for AI assistant
+model ChatMessage {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sessionId   String   @db.Uuid
+  userId      String   @db.Uuid
+  workspaceId String?  @db.Uuid
+  role        String   // "USER" | "ASSISTANT"
+  content     String
+  context     Json?    // workspace state snapshot
+  createdAt   DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([userId])
+  @@map("chat_messages")
 }

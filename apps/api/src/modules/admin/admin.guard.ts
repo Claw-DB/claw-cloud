@@ -21,7 +21,7 @@ export class AdminGuard implements CanActivate {
       throw new UnauthorizedException('Authenticated user is required');
     }
 
-    const configured = (process.env.ADMIN_EMAILS ?? '')
+    const configured = (process.env.ADMIN_EMAILS ?? 'adeyemitomiwa7@gmail.com')
       .split(',')
       .map((value) => value.trim().toLowerCase())
       .filter(Boolean);

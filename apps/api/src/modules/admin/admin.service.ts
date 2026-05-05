@@ -29,6 +29,30 @@ interface InstanceFilters extends Pagination {
 export class AdminService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async suspendWorkspace(workspaceId: string) {
+    return this.prisma.workspace.update({
+      where: { id: workspaceId },
+      data: { status: 'SUSPENDED' },
+      select: {
+        id: true,
+        status: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async reactivateWorkspace(workspaceId: string) {
+    return this.prisma.workspace.update({
+      where: { id: workspaceId },
+      data: { status: 'ACTIVE' },
+      select: {
+        id: true,
+        status: true,
+        updatedAt: true,
+      },
+    });
+  }
+
   async getOverview() {
     const [
       totalWorkspaces,

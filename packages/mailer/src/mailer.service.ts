@@ -25,8 +25,8 @@ const SUBJECT_TEMPLATES: Record<MailTemplateName, string> = {
   'backup-completed': 'Backup completed for {{instanceName}}',
 };
 
-const DEFAULT_FROM = 'noreply@clawdb.io';
-const DEFAULT_REPLY_TO = 'support@clawdb.io';
+const DEFAULT_FROM = 'noreply@clawdb.dev';
+const DEFAULT_REPLY_TO = 'support@clawdb.dev';
 
 export class MailerService {
   private templateCache = new Map<MailTemplateName, Handlebars.TemplateDelegate>();
@@ -41,11 +41,11 @@ export class MailerService {
       ...variables,
       preferenceCenterUrl:
         (variables.preferenceCenterUrl as string | undefined) ??
-        `${process.env.APP_URL ?? 'https://app.clawdb.io'}/settings/notifications`,
+        `${process.env.APP_URL ?? 'https://app.clawdb.dev'}/settings/notifications`,
     });
     const preferenceCenterUrl =
       (variables.preferenceCenterUrl as string | undefined) ??
-      `${process.env.APP_URL ?? 'https://app.clawdb.io'}/settings/notifications`;
+      `${process.env.APP_URL ?? 'https://app.clawdb.dev'}/settings/notifications`;
 
     const html = this.wrapHtml(bodyHtml, preferenceCenterUrl);
     const text = htmlToText(html, {

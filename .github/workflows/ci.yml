@@ -1,24 +1,230 @@
 name: CI
 
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9'
 
 jobs:
-  build-test:
+  # ── Install & cache ─────────────────────────────────────────────────────────
+  install:
+    name: Install dependencies
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+
+      - uses: pnpm/action-setup@v3
         with:
-          version: 9
+          version: ${{ env.PNPM_VERSION }}
+
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @claw/api type-check
-      - run: pnpm --filter @claw/worker type-check
-      - run: pnpm --filter @claw/web type-check
-      - run: pnpm --filter @claw/admin type-check
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache node_modules
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+
+  # ── Type-check ───────────────────────────────────────────────────────────────
+  typecheck:
+    name: Type-check
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install (if cache miss)
+        run: pnpm install --frozen-lockfile
+
+      - name: Type-check all apps
+        run: |
+          pnpm --filter @claw/api exec tsc --noEmit
+          pnpm --filter @claw/web exec tsc --noEmit
+          pnpm --filter @claw/admin exec tsc --noEmit
+          pnpm --filter @claw/worker exec tsc --noEmit
+
+  # ── Lint ─────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install (if cache miss)
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @claw/web lint || true
+
+  # ── Build ─────────────────────────────────────────────────────────────────────
+  build:
+    name: Build
+    needs: [typecheck, lint]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install (if cache miss)
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm --filter @claw/api build && pnpm --filter @claw/worker build && pnpm --filter @claw/web build && pnpm --filter @claw/admin build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts-${{ github.sha }}
+          path: |
+            apps/api/dist
+            apps/web/.next
+            apps/admin/.next
+            apps/worker/dist
+          retention-days: 7
+
+  # ── E2E smoke tests ───────────────────────────────────────────────────────────
+  e2e:
+    name: E2E smoke tests
+    needs: build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: clawcloud_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/clawcloud_test
+      REDIS_URL: redis://localhost:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Restore node_modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: node-modules-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install (if cache miss)
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @claw/web exec playwright install --with-deps chromium
+
+      - name: Run DB migrations
+        run: pnpm --filter @claw/db exec prisma migrate deploy
+
+      - name: Restore build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts-${{ github.sha }}
+          path: .
+
+      - name: Run Playwright smoke tests
+        run: pnpm --filter @claw/web exec playwright test
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.sha }}
+          path: apps/web/playwright-report
+          retention-days: 7
+

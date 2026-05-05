@@ -1,15 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import {
-  cancelSubscription as cancelStripeSubscription,
-  constructWebhookEvent,
-  createBillingPortalSession,
-  createCheckoutSession,
-  getPriceIdForPlan,
-  listInvoices,
-  retrieveSubscription,
-  Stripe,
-  upsertCustomer,
-} from '@claw/billing';
+import crypto from 'node:crypto';
 import { WorkspacePlan } from '@prisma/client';
 import { JOB_NAMES, QUEUE_NAMES } from '@claw/common';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -29,95 +19,81 @@ export class BillingService {
   ) {
     const workspace = await this.prisma.workspace.findUnique({
       where: { id: workspaceId },
-      include: { owner: true, billingSubscription: true },
+      include: { billingSubscription: true },
     });
     if (!workspace) {
       throw new NotFoundException('Workspace not found');
     }
 
-    const customer = await upsertCustomer({
-      customerId: workspace.billingSubscription?.stripeCustomerId,
-      email: workspace.owner.email,
-      name: workspace.name,
-      metadata: { workspaceId: workspace.id },
-    });
+    const checkoutBaseUrl = this.resolveCheckoutUrl(plan);
+    if (!checkoutBaseUrl) {
+      throw new NotFoundException(`Lemon checkout URL is not configured for ${plan}`);
+    }
 
     await this.prisma.billingSubscription.upsert({
       where: { workspaceId },
       create: {
         workspaceId,
-        stripeCustomerId: customer.id,
+        stripeCustomerId: workspace.billingSubscription?.stripeCustomerId ?? `lemon:${workspaceId}`,
         status: 'TRIALING',
       },
-      update: {
-        stripeCustomerId: customer.id,
-      },
+      update: {},
     });
 
-    const priceId = getPriceIdForPlan(plan);
-    if (!priceId) {
-      throw new NotFoundException('Stripe price is not configured for plan');
-    }
+    const url = new URL(checkoutBaseUrl);
+    url.searchParams.set('checkout[success_url]', successUrl);
+    url.searchParams.set('checkout[cancel_url]', cancelUrl);
+    url.searchParams.set('checkout[custom][workspace_id]', workspaceId);
+    url.searchParams.set('checkout[custom][plan]', plan);
 
-    const session = await createCheckoutSession({
-      mode: 'subscription',
-      customer: customer.id,
-      line_items: [{ price: priceId, quantity: 1 }],
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      metadata: { workspaceId, priceId },
-      subscription_data: { metadata: { workspaceId, priceId } },
-    });
-
-    return { url: session.url };
+    return { url: url.toString() };
   }
 
   async createPortalSession(workspaceId: string, returnUrl: string) {
-    const subscription = await this.prisma.billingSubscription.findUnique({ where: { workspaceId } });
-    if (!subscription) {
-      throw new NotFoundException('Billing subscription not found');
+    const portalUrl = process.env.LEMONSQUEEZY_BILLING_PORTAL_URL;
+    if (!portalUrl) {
+      throw new NotFoundException('LEMONSQUEEZY_BILLING_PORTAL_URL is not configured');
     }
 
-    const session = await createBillingPortalSession({
-      customer: subscription.stripeCustomerId,
-      return_url: returnUrl,
-    });
+    const url = new URL(portalUrl);
+    url.searchParams.set('workspace_id', workspaceId);
+    url.searchParams.set('return_url', returnUrl);
 
-    return { url: session.url };
+    return { url: url.toString() };
   }
 
   async handleWebhook(rawBody: Buffer, signature: string): Promise<void> {
-    const secret = process.env.STRIPE_WEBHOOK_SECRET;
+    const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
     if (!secret) {
-      throw new NotFoundException('STRIPE_WEBHOOK_SECRET is not configured');
+      throw new NotFoundException('LEMONSQUEEZY_WEBHOOK_SECRET is not configured');
     }
 
-    const event = await constructWebhookEvent(rawBody, signature, secret);
+    const digest = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
+    const headerValue = (signature ?? '').trim();
+    const valid =
+      digest.length === headerValue.length
+      && crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(headerValue));
 
-    switch (event.type) {
-      case 'checkout.session.completed': {
-        const session = event.data.object as Stripe.Checkout.Session;
-        await this.activateCheckoutSession(session);
+    if (!valid) {
+      throw new NotFoundException('Invalid Lemon webhook signature');
+    }
+
+    const event = JSON.parse(rawBody.toString('utf-8')) as Record<string, any>;
+    const eventName = event?.meta?.event_name as string | undefined;
+
+    switch (eventName) {
+      case 'subscription_created':
+      case 'subscription_updated': {
+        await this.syncLemonSubscription(event);
         break;
       }
-      case 'customer.subscription.updated': {
-        const subscription = event.data.object as Stripe.Subscription;
-        await this.syncSubscription(subscription);
+      case 'subscription_cancelled':
+      case 'subscription_expired': {
+        await this.downgradeLemonSubscription(event);
         break;
       }
-      case 'customer.subscription.deleted': {
-        const subscription = event.data.object as Stripe.Subscription;
-        await this.downgradeSubscription(subscription);
-        break;
-      }
-      case 'invoice.paid': {
-        const invoice = event.data.object as Stripe.Invoice;
-        await this.recordInvoice(invoice);
-        break;
-      }
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object as Stripe.Invoice;
-        await this.markPastDue(invoice);
+      case 'order_created': {
+        await this.recordLemonInvoice(event);
         break;
       }
       default:
@@ -131,24 +107,32 @@ export class BillingService {
       throw new NotFoundException('Billing subscription not found');
     }
 
-    const stripeData = subscription.stripeSubscriptionId
-      ? await retrieveSubscription(subscription.stripeSubscriptionId)
-      : null;
-
-    return { ...subscription, stripeData };
+    return subscription;
   }
 
   async cancelSubscription(workspaceId: string, immediately: boolean): Promise<void> {
     const subscription = await this.prisma.billingSubscription.findUnique({ where: { workspaceId } });
-    if (!subscription?.stripeSubscriptionId) {
-      throw new NotFoundException('Stripe subscription not found');
+    if (!subscription) {
+      throw new NotFoundException('Billing subscription not found');
     }
 
-    await cancelStripeSubscription(subscription.stripeSubscriptionId, immediately);
-    await this.prisma.billingSubscription.update({
-      where: { workspaceId },
-      data: { cancelAtPeriodEnd: !immediately },
-    });
+    await this.prisma.$transaction([
+      this.prisma.billingSubscription.update({
+        where: { workspaceId },
+        data: {
+          cancelAtPeriodEnd: !immediately,
+          status: immediately ? 'CANCELED' : subscription.status,
+        },
+      }),
+      ...(immediately
+        ? [
+            this.prisma.workspace.update({
+              where: { id: workspaceId },
+              data: { plan: 'FREE' },
+            }),
+          ]
+        : []),
+    ]);
   }
 
   async getInvoices(workspaceId: string) {
@@ -158,58 +142,50 @@ export class BillingService {
     });
   }
 
-  private async activateCheckoutSession(session: Stripe.Checkout.Session) {
-    const workspaceId = session.metadata?.workspaceId;
+  private async syncLemonSubscription(event: Record<string, any>) {
+    const workspaceId = this.extractWorkspaceId(event);
     if (!workspaceId) {
       return;
     }
 
-    const subscriptionId = session.subscription?.toString();
-    const plan = this.resolvePlanFromPriceId(session.metadata?.priceId ?? null, 'STARTER');
+    const attributes = (event?.data?.attributes ?? {}) as Record<string, any>;
+    const subscriptionId = String(event?.data?.id ?? attributes.subscription_id ?? '');
+    const customerId = String(attributes.customer_id ?? `lemon:${workspaceId}`);
+    const variantId = String(attributes.variant_id ?? attributes.first_subscription_item?.variant_id ?? '');
+    const plan = this.resolvePlanFromVariantId(variantId, 'FREE');
+
     await this.prisma.$transaction([
+      this.prisma.billingSubscription.upsert({
+        where: { workspaceId },
+        create: {
+          workspaceId,
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscriptionId || null,
+          stripePriceId: variantId || null,
+          status: this.normalizeLemonSubscriptionStatus(String(attributes.status ?? '')),
+          currentPeriodStart: this.parseDate(attributes.created_at),
+          currentPeriodEnd: this.parseDate(attributes.renews_at ?? attributes.ends_at),
+          cancelAtPeriodEnd: Boolean(attributes.cancelled),
+        },
+        update: {
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: subscriptionId || null,
+          stripePriceId: variantId || null,
+          status: this.normalizeLemonSubscriptionStatus(String(attributes.status ?? '')),
+          currentPeriodStart: this.parseDate(attributes.created_at),
+          currentPeriodEnd: this.parseDate(attributes.renews_at ?? attributes.ends_at),
+          cancelAtPeriodEnd: Boolean(attributes.cancelled),
+        },
+      }),
       this.prisma.workspace.update({
         where: { id: workspaceId },
         data: { plan, status: 'ACTIVE' },
       }),
-      this.prisma.billingSubscription.update({
-        where: { workspaceId },
-        data: {
-          stripeSubscriptionId: subscriptionId,
-          status: 'ACTIVE',
-        },
-      }),
     ]);
   }
 
-  private async syncSubscription(subscription: Stripe.Subscription) {
-    const workspaceId = subscription.metadata.workspaceId;
-    if (!workspaceId) {
-      return;
-    }
-
-    const priceId = subscription.items.data[0]?.price.id ?? null;
-    const plan = this.resolvePlanFromPriceId(priceId, 'FREE');
-    await this.prisma.$transaction([
-      this.prisma.billingSubscription.update({
-        where: { workspaceId },
-        data: {
-          stripeSubscriptionId: subscription.id,
-          stripePriceId: priceId,
-          status: this.normalizeSubscriptionStatus(subscription.status),
-          currentPeriodStart: new Date(subscription.current_period_start * 1000),
-          currentPeriodEnd: new Date(subscription.current_period_end * 1000),
-          cancelAtPeriodEnd: subscription.cancel_at_period_end,
-        },
-      }),
-      this.prisma.workspace.update({
-        where: { id: workspaceId },
-        data: { plan },
-      }),
-    ]);
-  }
-
-  private async downgradeSubscription(subscription: Stripe.Subscription) {
-    const workspaceId = subscription.metadata.workspaceId;
+  private async downgradeLemonSubscription(event: Record<string, any>) {
+    const workspaceId = this.extractWorkspaceId(event);
     if (!workspaceId) {
       return;
     }
@@ -217,78 +193,95 @@ export class BillingService {
     await this.prisma.$transaction([
       this.prisma.billingSubscription.update({
         where: { workspaceId },
-        data: { status: 'CANCELED', stripeSubscriptionId: subscription.id },
+        data: {
+          status: 'CANCELED',
+          cancelAtPeriodEnd: false,
+          currentPeriodEnd: this.parseDate(event?.data?.attributes?.ends_at) ?? new Date(),
+        },
       }),
       this.prisma.workspace.update({ where: { id: workspaceId }, data: { plan: 'FREE' } }),
     ]);
   }
 
-  private async recordInvoice(invoice: Stripe.Invoice) {
-    const subscription = await this.prisma.billingSubscription.findFirst({
-      where: { stripeCustomerId: invoice.customer?.toString() },
-    });
-    if (!subscription) {
+  private async recordLemonInvoice(event: Record<string, any>) {
+    const workspaceId = this.extractWorkspaceId(event);
+    if (!workspaceId) {
       return;
     }
 
+    const data = event?.data ?? {};
+    const attributes = (data?.attributes ?? {}) as Record<string, any>;
+    const invoiceId = String(data?.id ?? attributes.identifier ?? attributes.order_number ?? '');
+    if (!invoiceId) {
+      return;
+    }
+
+    const amountCents = Number(attributes.total ?? attributes.subtotal ?? 0);
+    const createdAt = this.parseDate(attributes.created_at) ?? new Date();
+    const rawPdfUrl = attributes.urls?.invoice_url ?? attributes.urls?.receipt ?? null;
+    const pdfUrl = typeof rawPdfUrl === 'string' && rawPdfUrl.length > 0 ? rawPdfUrl : null;
+
     await this.prisma.invoice.upsert({
-      where: { stripeInvoiceId: invoice.id },
+      where: { stripeInvoiceId: invoiceId },
       create: {
-        workspaceId: subscription.workspaceId,
-        stripeInvoiceId: invoice.id,
-        status: invoice.status ?? 'paid',
-        amountCents: invoice.amount_paid,
-        currency: invoice.currency,
-        periodStart: new Date(invoice.period_start * 1000),
-        periodEnd: new Date(invoice.period_end * 1000),
-        pdfUrl: invoice.invoice_pdf ?? null,
+        workspaceId,
+        stripeInvoiceId: invoiceId,
+        status: String(attributes.status ?? 'paid'),
+        amountCents,
+        currency: String(attributes.currency ?? 'usd').toLowerCase(),
+        periodStart: createdAt,
+        periodEnd: this.parseDate(attributes.renews_at ?? attributes.ends_at) ?? createdAt,
+        pdfUrl,
       },
       update: {
-        status: invoice.status ?? 'paid',
-        amountCents: invoice.amount_paid,
-        pdfUrl: invoice.invoice_pdf ?? null,
+        status: String(attributes.status ?? 'paid'),
+        amountCents,
+        pdfUrl,
       },
     });
 
     await this.emailQueue.add(JOB_NAMES.RECEIPT_EMAIL, {
-      workspaceId: subscription.workspaceId,
-      invoiceId: invoice.id,
+      workspaceId,
+      invoiceId,
     });
   }
 
-  private async markPastDue(invoice: Stripe.Invoice) {
-    const subscription = await this.prisma.billingSubscription.findFirst({
-      where: { stripeCustomerId: invoice.customer?.toString() },
-    });
-    if (!subscription) {
-      return;
-    }
-
-    await this.prisma.billingSubscription.update({
-      where: { workspaceId: subscription.workspaceId },
-      data: { status: 'PAST_DUE' },
-    });
-
-    await this.emailQueue.add(JOB_NAMES.DUNNING_EMAIL, {
-      workspaceId: subscription.workspaceId,
-      invoiceId: invoice.id,
-    });
-  }
-
-  private resolvePlanFromPriceId(priceId: string | null, fallback: WorkspacePlan): WorkspacePlan {
+  private resolvePlanFromVariantId(variantId: string | null, fallback: WorkspacePlan): WorkspacePlan {
     const map: Record<string, WorkspacePlan> = {
-      [process.env.STRIPE_STARTER_PRICE_ID ?? '']: 'STARTER',
-      [process.env.STRIPE_PRO_PRICE_ID ?? '']: 'PRO',
-      [process.env.STRIPE_ENTERPRISE_PRICE_ID ?? '']: 'ENTERPRISE',
+      [process.env.LEMONSQUEEZY_VARIANT_STARTER ?? '']: 'STARTER',
+      [process.env.LEMONSQUEEZY_VARIANT_PRO ?? '']: 'PRO',
+      [process.env.LEMONSQUEEZY_VARIANT_ENTERPRISE ?? '']: 'ENTERPRISE',
     };
 
-    return (priceId && map[priceId]) || fallback;
+    return (variantId && map[variantId]) || fallback;
   }
 
-  private normalizeSubscriptionStatus(status: string) {
+  private normalizeLemonSubscriptionStatus(status: string) {
     if (status === 'active') return 'ACTIVE';
-    if (status === 'past_due') return 'PAST_DUE';
-    if (status === 'canceled') return 'CANCELED';
+    if (status === 'on_trial' || status === 'trialing') return 'TRIALING';
+    if (status === 'past_due' || status === 'unpaid') return 'PAST_DUE';
+    if (status === 'cancelled' || status === 'canceled' || status === 'expired') return 'CANCELED';
     return 'TRIALING';
+  }
+
+  private resolveCheckoutUrl(plan: Exclude<WorkspacePlan, 'FREE'>): string | null {
+    const map: Record<Exclude<WorkspacePlan, 'FREE'>, string | undefined> = {
+      STARTER: process.env.LEMONSQUEEZY_CHECKOUT_STARTER,
+      PRO: process.env.LEMONSQUEEZY_CHECKOUT_PRO,
+      ENTERPRISE: process.env.LEMONSQUEEZY_CHECKOUT_ENTERPRISE,
+    };
+
+    return map[plan] ?? null;
+  }
+
+  private extractWorkspaceId(event: Record<string, any>): string | null {
+    const custom = event?.meta?.custom_data ?? event?.data?.attributes?.custom_data ?? {};
+    return String(custom.workspace_id ?? custom.workspaceId ?? '').trim() || null;
+  }
+
+  private parseDate(value: unknown): Date | null {
+    if (!value || typeof value !== 'string') return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
 }

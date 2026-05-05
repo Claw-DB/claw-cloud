@@ -12,6 +12,15 @@ export const LoginDto = z.object({
   password: z.string().min(1),
 });
 
+export const VerifyTotpDto = z.object({
+  tempToken: z.string().min(1),
+  code: z.string().regex(/^\d{6}$/),
+});
+
+export const RefreshTokenDto = z.object({
+  refreshToken: z.string().min(1),
+});
+
 export const ForgotPasswordDto = z.object({
   email: z.string().email(),
 });
@@ -23,6 +32,14 @@ export const ResetPasswordDto = z.object({
 
 export const MagicLinkDto = z.object({
   email: z.string().email(),
+});
+
+export const ConfirmTotpDto = z.object({
+  code: z.string().regex(/^\d{6}$/),
+});
+
+export const DisableTotpDto = z.object({
+  code: z.string().regex(/^\d{6}$/),
 });
 
 export const CreateWorkspaceDto = z.object({
@@ -184,9 +201,13 @@ export const CreateSamlConfigDto = z.object({
 
 export type RegisterDtoType = z.infer<typeof RegisterDto>;
 export type LoginDtoType = z.infer<typeof LoginDto>;
+export type VerifyTotpDtoType = z.infer<typeof VerifyTotpDto>;
+export type RefreshTokenDtoType = z.infer<typeof RefreshTokenDto>;
 export type ForgotPasswordDtoType = z.infer<typeof ForgotPasswordDto>;
 export type ResetPasswordDtoType = z.infer<typeof ResetPasswordDto>;
 export type MagicLinkDtoType = z.infer<typeof MagicLinkDto>;
+export type ConfirmTotpDtoType = z.infer<typeof ConfirmTotpDto>;
+export type DisableTotpDtoType = z.infer<typeof DisableTotpDto>;
 export type CreateWorkspaceDtoType = z.infer<typeof CreateWorkspaceDto>;
 export type UpdateWorkspaceDtoType = z.infer<typeof UpdateWorkspaceDto>;
 export type CreateInstanceDtoType = z.infer<typeof CreateInstanceDto>;

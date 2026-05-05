@@ -1,21 +1,17 @@
 // GithubStrategy — Passport OAuth strategy for GitHub authentication
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy, Profile } from 'passport-github2';
-import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service.js';
-import { User } from '@prisma/client';
 
 @Injectable()
 export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
-  constructor(
-    config: ConfigService,
-    private readonly authService: AuthService,
-  ) {
+  constructor(@Inject(AuthService) private readonly authService: AuthService) {
     super({
-      clientID: config.get<string>('GITHUB_CLIENT_ID') ?? '',
-      clientSecret: config.get<string>('GITHUB_CLIENT_SECRET') ?? '',
-      callbackURL: config.get<string>('GITHUB_CALLBACK_URL') ?? 'http://localhost:4000/auth/github/callback',
+      clientID: process.env.GITHUB_CLIENT_ID ?? 'dev-github-client-id',
+      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? 'dev-github-client-secret',
+      callbackURL:
+        process.env.GITHUB_CALLBACK_URL ?? 'http://localhost:4000/api/v1/auth/github/callback',
       scope: ['user:email'],
     });
   }
@@ -41,6 +37,6 @@ export class GithubStrategy extends PassportStrategy(Strategy, 'github') {
       refreshToken,
     );
 
-    done(null, result as unknown as User);
+    done(null, result);
   }
 }

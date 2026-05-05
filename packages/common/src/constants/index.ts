@@ -2,7 +2,7 @@
 export const WORKSPACE_TRIAL_DAYS = 14;
 export const INVITATION_EXPIRY_DAYS = 7;
 export const INVITATION_TOKEN_BYTES = 32;
-export const API_KEY_PREFIX_LENGTH = 12;
+export const API_KEY_PREFIX_LENGTH = 8;
 export const API_KEY_ROTATION_GRACE_PERIOD_SECONDS = 15 * 60;
 export const API_KEY_LAST_USED_DEBOUNCE_MS = 5 * 60 * 1000;
 export const WEBHOOK_SECRET_BYTES = 32;
@@ -17,28 +17,32 @@ export const BACKUP_SNAPSHOT_POLL_MS = 5_000;
 export const PLANS = {
   FREE: {
     name: 'Free',
+    priceUsd: 0,
     maxInstances: 1,
-    maxMembers: 3,
-    maxStorageGb: 5,
-    maxBackupDays: 3,
+    maxMembers: 1,
+    maxStorageGb: 0.1,   // 100 MB
+    maxBackupDays: 0,    // no backups on free
   },
   STARTER: {
     name: 'Starter',
+    priceUsd: 9,
     maxInstances: 3,
-    maxMembers: 10,
-    maxStorageGb: 50,
+    maxMembers: 5,
+    maxStorageGb: 20,
     maxBackupDays: 7,
   },
   PRO: {
     name: 'Pro',
+    priceUsd: 39,
     maxInstances: 10,
-    maxMembers: 50,
-    maxStorageGb: 500,
+    maxMembers: 25,
+    maxStorageGb: 200,
     maxBackupDays: 30,
   },
   ENTERPRISE: {
     name: 'Enterprise',
-    maxInstances: -1, // unlimited
+    priceUsd: null,      // custom
+    maxInstances: -1,
     maxMembers: -1,
     maxStorageGb: -1,
     maxBackupDays: 90,
@@ -47,22 +51,22 @@ export const PLANS = {
 
 export const PLAN_LIMITS = {
   FREE: {
-    rpmLimit: 60,
+    rpmLimit: 30,
     maxInstances: 1,
-    maxMembers: 3,
-    maxTier: 'NANO',
+    maxMembers: 1,
+    maxTier: 'NANO',     // 50 MB mem / 100 MB storage only
   },
   STARTER: {
     rpmLimit: 300,
     maxInstances: 3,
-    maxMembers: 10,
-    maxTier: 'SMALL',
+    maxMembers: 5,
+    maxTier: 'MICRO',
   },
   PRO: {
     rpmLimit: 2000,
     maxInstances: 10,
-    maxMembers: 50,
-    maxTier: 'XL',
+    maxMembers: 25,
+    maxTier: 'LARGE',
   },
   ENTERPRISE: {
     rpmLimit: 10000,
@@ -80,22 +84,23 @@ export const REGIONS = {
   APAC_EAST: { label: 'APAC East (Tokyo)', flag: '🇯🇵' },
 } as const;
 
+// storage is in GB; mem is in MB
 export const INSTANCE_TIERS = {
-  NANO: { label: 'Nano', cpuMillicores: 250, memoryMb: 512, storageGb: 5 },
-  MICRO: { label: 'Micro', cpuMillicores: 500, memoryMb: 1024, storageGb: 20 },
-  SMALL: { label: 'Small', cpuMillicores: 1000, memoryMb: 2048, storageGb: 50 },
-  MEDIUM: { label: 'Medium', cpuMillicores: 2000, memoryMb: 4096, storageGb: 100 },
-  LARGE: { label: 'Large', cpuMillicores: 4000, memoryMb: 8192, storageGb: 200 },
-  XL: { label: 'XL', cpuMillicores: 8000, memoryMb: 16384, storageGb: 500 },
+  NANO:   { label: 'Nano',   cpuMillicores: 250,  memoryMb: 50,    storageGb: 0.1  },   // FREE only
+  MICRO:  { label: 'Micro',  cpuMillicores: 500,  memoryMb: 512,   storageGb: 5    },   // STARTER+
+  SMALL:  { label: 'Small',  cpuMillicores: 1000, memoryMb: 1024,  storageGb: 20   },   // STARTER+
+  MEDIUM: { label: 'Medium', cpuMillicores: 2000, memoryMb: 2048,  storageGb: 50   },   // PRO+
+  LARGE:  { label: 'Large',  cpuMillicores: 4000, memoryMb: 4096,  storageGb: 100  },   // PRO+
+  XL:     { label: 'XL',     cpuMillicores: 8000, memoryMb: 8192,  storageGb: 500  },   // ENTERPRISE
 } as const;
 
 export const TIER_SPECS = {
-  NANO: { cpu: 250, mem: 512, storage: 5 },
-  MICRO: { cpu: 500, mem: 1024, storage: 20 },
-  SMALL: { cpu: 1000, mem: 2048, storage: 50 },
-  MEDIUM: { cpu: 2000, mem: 4096, storage: 100 },
-  LARGE: { cpu: 4000, mem: 8192, storage: 200 },
-  XL: { cpu: 8000, mem: 16384, storage: 500 },
+  NANO:   { cpu: 250,  mem: 50,   storage: 0.1  },
+  MICRO:  { cpu: 500,  mem: 512,  storage: 5    },
+  SMALL:  { cpu: 1000, mem: 1024, storage: 20   },
+  MEDIUM: { cpu: 2000, mem: 2048, storage: 50   },
+  LARGE:  { cpu: 4000, mem: 4096, storage: 100  },
+  XL:     { cpu: 8000, mem: 8192, storage: 500  },
 } as const;
 
 export const BACKUP_RETENTION_DAYS = {
@@ -120,6 +125,7 @@ export const QUEUE_NAMES = {
 export const JOB_NAMES = {
   WELCOME_EMAIL: 'welcome-email',
   INVITATION_EMAIL: 'invitation-email',
+  PASSWORD_RESET_EMAIL: 'password-reset-email',
   RECEIPT_EMAIL: 'receipt-email',
   DUNNING_EMAIL: 'dunning-email',
   PROVISION_INSTANCE: 'provision-instance',
@@ -139,8 +145,8 @@ export const JOB_NAMES = {
   WEBHOOK_DELIVERY: 'webhook-delivery',
 } as const;
 
-export const JWT_EXPIRY = '7d';
-export const SESSION_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+export const JWT_EXPIRY = '15m';
+export const SESSION_EXPIRY_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 export const MAGIC_LINK_TTL_SECONDS = 900; // 15 minutes
 export const BCRYPT_ROUNDS = 12;
 

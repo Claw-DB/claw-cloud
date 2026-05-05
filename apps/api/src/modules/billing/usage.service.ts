@@ -9,7 +9,6 @@ import {
 import { WorkspacePlan } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { getRedis } from '../../common/infra/redis.js';
-import { createUsageRecord } from '@claw/billing';
 
 @Injectable()
 export class UsageService {
@@ -128,14 +127,6 @@ export class UsageService {
       lineItems,
       totalUsd: Number(lineItems.reduce((sum, item) => sum + item.amountUsd, 0).toFixed(6)),
     };
-  }
-
-  async reportUsageToStripe(
-    subscriptionItemId: string,
-    quantity: number,
-    timestamp: number,
-  ): Promise<void> {
-    await createUsageRecord(subscriptionItemId, quantity, timestamp);
   }
 
   private toMetrics(values: Record<string, string>): UsageMetrics {

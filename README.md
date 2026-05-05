@@ -13,7 +13,7 @@ Managed hosted platform for ClawDB built as a pnpm monorepo.
 
 - `packages/common`: shared constants, DTO schemas, and types.
 - `packages/db`: Prisma schema/client and seed logic.
-- `packages/billing`: Stripe integration helpers.
+- `packages/billing`: LemonSqueezy integration helpers.
 - `packages/mailer`: Resend + Handlebars transactional email module.
 - `packages/infra`: Terraform modules and Kubernetes manifest baselines.
 

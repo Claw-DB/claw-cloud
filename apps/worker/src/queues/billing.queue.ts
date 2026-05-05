@@ -1,4 +1,3 @@
-import { createUsageRecord } from '@claw/billing';
 import { JOB_NAMES, QUEUE_NAMES } from '@claw/common';
 import { type QueueJob, type QueueDefinition } from './types.js';
 
@@ -83,27 +82,8 @@ export const billingQueue: QueueDefinition = {
       return;
     }
 
-    const period = job.data.period ?? new Date().toISOString().slice(0, 7);
-    const periodDate = new Date(`${period}-01T00:00:00.000Z`);
-    const subscriptions = await prisma.billingSubscription.findMany({
-      where: { stripeSubscriptionId: { not: null }, status: 'ACTIVE' },
-    });
-
-    for (const subscription of subscriptions) {
-      const usage = await prisma.usageRecord.findMany({
-        where: {
-          workspaceId: subscription.workspaceId,
-          period: periodDate,
-        },
-      });
-      const quantity = usage.reduce(
-        (sum, row) => sum + Number(row.memoryOpsCount) + Number(row.vectorOpsCount),
-        0,
-      );
-      const itemId = (subscription.metadata as Record<string, unknown>)?.subscriptionItemId;
-      if (typeof itemId === 'string' && quantity > 0) {
-        await createUsageRecord(itemId, quantity, Math.floor(Date.now() / 1000));
-      }
-    }
+    // Lemon billing does not use Stripe metered-usage reporting.
+    // Usage is still persisted and billed from internal usage records.
+    void job.data.period;
   },
 };

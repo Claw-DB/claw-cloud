@@ -5,7 +5,7 @@
   "description": "BullMQ background workers for claw-cloud async processing",
   "scripts": {
     "build": "tsc --project tsconfig.json",
-    "dev": "tsx watch src/main.ts",
+    "dev": "set -a && . ../../.env && set +a && tsx watch src/main.ts",
     "start": "node dist/main.js",
     "type-check": "tsc --noEmit",
     "clean": "rimraf dist tsconfig.tsbuildinfo"
@@ -19,7 +19,6 @@
     "ioredis": "^5.3.2",
     "@claw/db": "workspace:*",
     "@claw/common": "workspace:*",
-    "@claw/billing": "workspace:*",
     "@claw/mailer": "workspace:*"
   },
   "devDependencies": {

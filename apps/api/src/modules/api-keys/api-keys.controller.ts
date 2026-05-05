@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { CreateApiKeyDto, CreateApiKeyDtoType } from '@claw/common';
 import { User } from '@prisma/client';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -28,6 +29,7 @@ export class ApiKeysController {
   constructor(private readonly apiKeysService: ApiKeysService) {}
 
   @Post()
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @RequireRole('OWNER', 'ADMIN')
   @ApiOperation({ summary: 'Create a workspace API key' })
   async create(
@@ -39,6 +41,7 @@ export class ApiKeysController {
   }
 
   @Get()
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
   @RequireRole('OWNER', 'ADMIN')
   @ApiOperation({ summary: 'List workspace API keys' })
   async list(@Param('id') workspaceId: string) {
@@ -46,6 +49,7 @@ export class ApiKeysController {
   }
 
   @Delete(':keyId')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @RequireRole('OWNER', 'ADMIN')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Revoke an API key' })
@@ -54,6 +58,7 @@ export class ApiKeysController {
   }
 
   @Post(':keyId/rotate')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @RequireRole('OWNER', 'ADMIN')
   @ApiOperation({ summary: 'Rotate an API key' })
   async rotate(@Param('id') workspaceId: string, @Param('keyId') keyId: string) {

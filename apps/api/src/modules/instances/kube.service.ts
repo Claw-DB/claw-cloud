@@ -1,10 +1,13 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import {
   AppsV1Api,
+  Cluster,
   CoreV1Api,
+  Context,
   KubeConfig,
   Log,
   NetworkingV1Api,
+  User,
   V1ConfigMap,
   V1Deployment,
   V1Namespace,
@@ -32,16 +35,72 @@ export class KubeService {
   private readonly logClient: Log;
 
   constructor(private readonly prisma: PrismaService) {
-    if (process.env.KUBERNETES_SERVICE_HOST) {
-      this.kubeConfig.loadFromCluster();
-    } else {
-      this.kubeConfig.loadFromDefault();
-    }
+    this.configureKubeClient();
 
     this.coreApi = this.kubeConfig.makeApiClient(CoreV1Api);
     this.appsApi = this.kubeConfig.makeApiClient(AppsV1Api);
     this.networkingApi = this.kubeConfig.makeApiClient(NetworkingV1Api);
     this.logClient = new Log(this.kubeConfig);
+  }
+
+  private configureKubeClient() {
+    const explicitServer = process.env.KUBE_API_SERVER?.trim();
+    const explicitKubeconfig = process.env.KUBECONFIG?.trim();
+    const skipTlsVerify = this.readBoolEnv('KUBE_SKIP_TLS_VERIFY', false);
+
+    if (explicitServer) {
+      if (explicitServer.startsWith('http://') && !skipTlsVerify) {
+        throw new ServiceUnavailableException(
+          'KUBE_API_SERVER uses HTTP. Set KUBE_SKIP_TLS_VERIFY=true for local dev clusters.',
+        );
+      }
+
+      const cluster: Cluster = {
+        name: 'claw-cloud',
+        server: explicitServer,
+        skipTLSVerify: skipTlsVerify,
+      };
+      const user: User = { name: 'claw-cloud' };
+      const context: Context = {
+        name: 'claw-cloud',
+        cluster: cluster.name,
+        user: user.name,
+      };
+
+      this.kubeConfig.loadFromOptions({
+        clusters: [cluster],
+        users: [user],
+        contexts: [context],
+        currentContext: context.name,
+      });
+
+      this.logger.log(
+        `Using explicit Kubernetes API server ${explicitServer} (skipTLSVerify=${skipTlsVerify})`,
+      );
+      return;
+    }
+
+    if (process.env.KUBERNETES_SERVICE_HOST) {
+      this.kubeConfig.loadFromCluster();
+      this.logger.log('Using in-cluster Kubernetes configuration');
+      return;
+    }
+
+    if (explicitKubeconfig) {
+      this.kubeConfig.loadFromFile(explicitKubeconfig);
+      this.logger.log(`Using KUBECONFIG from ${explicitKubeconfig}`);
+      return;
+    }
+
+    this.kubeConfig.loadFromDefault();
+    this.logger.log('Using default Kubernetes configuration');
+  }
+
+  private readBoolEnv(name: string, defaultValue: boolean): boolean {
+    const raw = process.env[name];
+    if (!raw) return defaultValue;
+    const normalized = raw.trim().toLowerCase();
+    return ['1', 'true', 'yes', 'y', 'on'].includes(normalized);
   }
 
   async provisionInstance(instance: Instance): Promise<{ podName: string; namespace: string }> {

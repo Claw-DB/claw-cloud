@@ -12,9 +12,9 @@ export async function sendEmail(payload: {
 }) {
   const resend = getResendClient();
   await resend.emails.send({
-    from: 'ClawDB Cloud <noreply@clawdb.io>',
+    from: 'ClawDB Cloud <noreply@clawdb.dev>',
     to: Array.isArray(payload.to) ? payload.to : [payload.to],
-    reply_to: 'support@clawdb.io',
+    reply_to: 'support@clawdb.dev',
     subject: payload.subject,
     html: payload.html,
   });

@@ -1,1 +1,1 @@
-export * from './stripe.client.js';
+export * from './lemonsqueezy.client.js';

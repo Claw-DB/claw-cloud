@@ -23,11 +23,10 @@ import { PrismaModule } from '../prisma/prisma.module.js';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        privateKey: config.get<string>('JWT_PRIVATE_KEY')?.replace(/\\n/g, '\n'),
-        publicKey: config.get<string>('JWT_PUBLIC_KEY')?.replace(/\\n/g, '\n'),
+        secret: config.get<string>('JWT_SECRET'),
         signOptions: {
-          algorithm: 'RS256',
-          expiresIn: '7d',
+          algorithm: 'HS256',
+          expiresIn: config.get<string>('JWT_EXPIRY') ?? '15m',
         },
       }),
     }),

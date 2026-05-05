@@ -1,0 +1,88 @@
+# Claw Cloud — local development stack
+# Usage: docker compose up -d
+# Then: pnpm dev (runs Next.js + NestJS via Turbo in hot-reload mode)
+# The compose stack provides the infrastructure services only.
+
+name: claw-cloud
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: clawcloud
+      POSTGRES_PASSWORD: clawcloud
+      POSTGRES_DB: clawcloud
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U clawcloud']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (BullMQ + caching) ────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO (S3-compatible backup storage for local dev) ──────────────────────
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── MailHog (catch-all SMTP for email testing) ──────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    restart: unless-stopped
+    ports:
+      - '1025:1025'   # SMTP
+      - '8025:8025'   # Web UI
+
+  # ── Prometheus (metrics scraping) ──────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    restart: unless-stopped
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./packages/infra/k8s/monitoring/prometheus-rules.yaml:/etc/prometheus/rules.yaml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    profiles: [monitoring]
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  prometheus_data:

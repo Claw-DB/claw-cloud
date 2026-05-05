@@ -19,6 +19,8 @@ function templateFromJobName(name: string): MailTemplateName {
       return 'welcome';
     case JOB_NAMES.INVITATION_EMAIL:
       return 'invitation';
+    case JOB_NAMES.PASSWORD_RESET_EMAIL:
+      return 'password-reset';
     case JOB_NAMES.DUNNING_EMAIL:
       return 'dunning';
     case JOB_NAMES.RECEIPT_EMAIL:

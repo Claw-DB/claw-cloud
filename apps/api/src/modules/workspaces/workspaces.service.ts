@@ -209,7 +209,10 @@ export class WorkspacesService {
     const workspace = await this.findById(workspaceId);
     await this.assertMemberCapacity(workspaceId, workspace.plan);
 
+    const inviter = await this.prisma.user.findUnique({ where: { id: invitedById } });
+
     const token = crypto.randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + INVITATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
     const invitation = await this.prisma.invitation.create({
       data: {
         workspaceId,
@@ -217,14 +220,20 @@ export class WorkspacesService {
         role,
         token,
         invitedById,
-        expiresAt: new Date(Date.now() + INVITATION_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+        expiresAt,
       },
     });
 
+    const frontendUrl = process.env.FRONTEND_URL ?? 'http://localhost:3000';
     await this.emailQueue.add(JOB_NAMES.INVITATION_EMAIL, {
-      workspaceId,
+      to: email,
       invitationId: invitation.id,
-      invitedById,
+      variables: {
+        inviterName: inviter?.name ?? 'A teammate',
+        workspaceName: workspace.name,
+        inviteUrl: `${frontendUrl}/accept-invite?token=${token}`,
+        expiresAt: expiresAt.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+      },
     });
 
     return invitation;

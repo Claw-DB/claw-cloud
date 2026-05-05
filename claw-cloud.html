@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>claw-cloud — ClawDB Managed Platform</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d0f14'/%3E%3Cg fill='none' stroke='%236c8fff' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath stroke-width='3.5' d='M20 46 C18 38 22 30 26 24 C28 20 28 16 24 14'/%3E%3Cpath stroke-width='3.5' d='M30 46 C29 37 33 28 36 22 C38 17 36 13 32 12'/%3E%3Cpath stroke-width='3.5' d='M40 46 C40 37 44 29 46 23 C48 17 45 13 41 13'/%3E%3Cellipse cx='32' cy='50' rx='14' ry='4' stroke-width='2.5' opacity='0.5'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@300;400;500;600&family=Geist:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #080a0f;
+  --bg-1:     #0d1018;
+  --bg-2:     #131720;
+  --bg-3:     #1a1f2e;
+  --border:   rgba(255,255,255,0.07);
+  --border-2: rgba(255,255,255,0.12);
+  --ink:      #e8eaf2;
+  --ink-2:    #9098b0;
+  --ink-3:    #5a6278;
+  --accent:   #6c8fff;
+  --accent-2: #4e6ee8;
+  --green:    #22c55e;
+  --amber:    #f59e0b;
+  --red:      #ef4444;
+  --purple:   #a78bfa;
+  --mono:     'Geist Mono', 'Courier New', monospace;
+  --sans:     'Geist', system-ui, sans-serif;
+}
+
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { background: var(--bg); color: var(--ink); font-family: var(--sans); overflow-x: hidden; }
+
+/* ── SCROLLBAR ─────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--bg-3); border-radius: 2px; }
+
+/* ── KEYFRAMES ─────────────────── */
+@keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+@keyframes spin { to{transform:rotate(360deg)} }
+@keyframes shimmer {
+  from{background-position:-200% 0}
+  to{background-position:200% 0}
+}
+
+/* ── LAYOUT ────────────────────── */
+.app { display: flex; height: 100vh; overflow: hidden; }
+
+/* ── SIDEBAR ───────────────────── */
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: var(--bg-1);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.sidebar-logo {
+  padding: 20px 20px 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.logo-icon {
+  width: 28px; height: 28px;
+  background: var(--bg-3);
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.logo-icon svg { width: 18px; height: 18px; }
+.logo-text { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+.logo-sub { font-size: 10px; color: var(--ink-3); font-family: var(--mono); }
+
+.ws-switcher {
+  margin: 12px 12px 0;
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.ws-switcher:hover { border-color: var(--border-2); }
+.ws-dot { width: 8px; height: 8px; background: var(--accent); border-radius: 50%; flex-shrink: 0; }
+.ws-name { font-size: 12px; font-weight: 500; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-chevron { color: var(--ink-3); font-size: 10px; }
+
+.nav-section { padding: 16px 12px 4px; }
+.nav-section-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 0 8px;
+  margin-bottom: 4px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--ink-2);
+  transition: all 0.12s;
+  user-select: none;
+  text-decoration: none;
+}
+.nav-item:hover { background: var(--bg-2); color: var(--ink); }
+.nav-item.active { background: rgba(108,143,255,0.1); color: var(--accent); }
+.nav-icon { width: 16px; height: 16px; opacity: 0.7; flex-shrink: 0; }
+.nav-item.active .nav-icon { opacity: 1; }
+.nav-badge {
+  margin-left: auto;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 10px;
+  font-family: var(--mono);
+}
+.nav-badge.green { background: var(--green); }
+.nav-badge.amber { background: var(--amber); color: var(--bg); }
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+.user-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.user-row:hover { background: var(--bg-2); }
+.avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), var(--purple));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 700; color: #fff;
+  flex-shrink: 0;
+}
+.user-info { flex: 1; min-width: 0; }
+.user-name { font-size: 12px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-plan { font-size: 10px; color: var(--ink-3); font-family: var(--mono); }
+
+/* ── MAIN ──────────────────────── */
+.main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+
+/* ── TOP BAR ───────────────────── */
+.topbar {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(8,10,15,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.page-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+.topbar-actions { display: flex; gap: 10px; align-items: center; }
+.btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 5px; border: none;
+  font-family: var(--sans); font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all 0.12s; text-decoration: none;
+}
+.btn-ghost { background: transparent; color: var(--ink-2); border: 1px solid var(--border); }
+.btn-ghost:hover { background: var(--bg-2); color: var(--ink); border-color: var(--border-2); }
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { background: var(--accent-2); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(108,143,255,0.3); }
+.btn-danger { background: rgba(239,68,68,0.1); color: var(--red); border: 1px solid rgba(239,68,68,0.2); }
+.btn-danger:hover { background: rgba(239,68,68,0.2); }
+.btn-sm { padding: 5px 10px; font-size: 11px; }
+
+/* ── CONTENT ───────────────────── */
+.content { padding: 24px 28px; flex: 1; animation: fadeIn 0.3s ease; }
+
+/* ── CARDS ─────────────────────── */
+.card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+}
+.card-title { font-size: 13px; font-weight: 600; }
+.card-subtitle { font-size: 11px; color: var(--ink-3); margin-top: 2px; }
+.card-body { padding: 18px; }
+
+/* ── METRIC TILES ──────────────── */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.metric-tile {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.metric-tile:hover { border-color: var(--border-2); }
+.metric-tile::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+}
+.metric-tile.blue::before { background: var(--accent); }
+.metric-tile.green::before { background: var(--green); }
+.metric-tile.amber::before { background: var(--amber); }
+.metric-tile.purple::before { background: var(--purple); }
+.metric-label { font-size: 11px; color: var(--ink-3); font-family: var(--mono); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 8px; }
+.metric-value { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; margin-bottom: 6px; }
+.metric-trend {
+  font-size: 11px; font-family: var(--mono);
+  display: flex; align-items: center; gap: 4px;
+}
+.trend-up { color: var(--green); }
+.trend-down { color: var(--red); }
+.trend-neutral { color: var(--ink-3); }
+
+/* ── API KEY BLOCK ─────────────── */
+.api-key-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.api-key-value {
+  font-family: var(--mono);
+  font-size: 13px;
+  flex: 1;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+.copy-btn {
+  padding: 5px 10px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 11px;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-family: var(--mono);
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.copy-btn:hover { background: var(--bg-3); color: var(--ink); }
+
+/* ── USAGE BAR ─────────────────── */
+.usage-row { margin-bottom: 16px; }
+.usage-meta {
+  display: flex; justify-content: space-between;
+  font-size: 12px; margin-bottom: 6px;
+}
+.usage-label { color: var(--ink-2); }
+.usage-numbers { font-family: var(--mono); color: var(--ink-3); font-size: 11px; }
+.usage-bar { height: 5px; background: var(--bg-3); border-radius: 3px; overflow: hidden; }
+.usage-fill {
+  height: 100%; border-radius: 3px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.fill-accent { background: var(--accent); }
+.fill-green  { background: var(--green); }
+.fill-amber  { background: var(--amber); }
+.fill-red    { background: var(--red); }
+
+/* ── CHART (CSS-drawn sparkline) ── */
+.chart-area {
+  height: 80px;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  padding: 8px 0 0;
+}
+.chart-bar {
+  flex: 1;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  opacity: 0.3;
+  transition: opacity 0.15s, height 0.3s ease;
+  min-height: 3px;
+}
+.chart-bar:hover { opacity: 0.8; }
+.chart-bar.today { opacity: 0.8; }
+
+/* ── TABLE ─────────────────────── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th {
+  padding: 10px 14px; text-align: left;
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ink-3); font-weight: 500; font-family: var(--mono);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.data-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: rgba(255,255,255,0.015); }
+.mono-cell { font-family: var(--mono); font-size: 11px; color: var(--ink-2); }
+.status-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600;
+  font-family: var(--mono); letter-spacing: 0.04em;
+}
+.pill-green  { background: rgba(34,197,94,0.1); color: var(--green); }
+.pill-amber  { background: rgba(245,158,11,0.1); color: var(--amber); }
+.pill-red    { background: rgba(239,68,68,0.1); color: var(--red); }
+.pill-blue   { background: rgba(108,143,255,0.1); color: var(--accent); }
+.pill-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: pulse 2s infinite; }
+
+/* ── GRID LAYOUTS ──────────────── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.grid-7-5 { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; }
+
+/* ── TABS ──────────────────────── */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.tab {
+  padding: 10px 18px; font-size: 13px; font-weight: 500;
+  color: var(--ink-3); cursor: pointer; border-bottom: 2px solid transparent;
+  transition: all 0.12s; margin-bottom: -1px;
+  user-select: none;
+}
+.tab:hover { color: var(--ink-2); }
+.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+/* ── ONBOARDING BANNER ─────────── */
+.onboarding-banner {
+  background: linear-gradient(135deg, rgba(108,143,255,0.08), rgba(167,139,250,0.06));
+  border: 1px solid rgba(108,143,255,0.2);
+  border-radius: 8px;
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 16px;
+  margin-bottom: 20px;
+}
+.ob-icon { font-size: 22px; }
+.ob-text { flex: 1; }
+.ob-title { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+.ob-sub { font-size: 12px; color: var(--ink-2); }
+.ob-progress {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--ink-3); font-family: var(--mono);
+}
+.ob-step {
+  width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700;
+}
+.ob-step.done { background: var(--green); color: #fff; }
+.ob-step.current { background: var(--accent); color: #fff; }
+.ob-step.todo { background: var(--bg-3); color: var(--ink-3); }
+
+/* ── QUICK INSTALL ─────────────── */
+.install-snippet {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.snippet-header {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 14px; border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+.snippet-dot { width: 8px; height: 8px; border-radius: 50%; }
+.snippet-tab {
+  font-family: var(--mono); font-size: 10px; color: var(--ink-3);
+  padding: 2px 8px; cursor: pointer; border-radius: 3px;
+  transition: all 0.1s;
+}
+.snippet-tab.active { background: var(--bg-3); color: var(--ink); }
+.snippet-body {
+  padding: 14px;
+  font-family: var(--mono); font-size: 12px; line-height: 1.7;
+  color: #c8cce0;
+}
+.sk { color: #8899ff; } /* keyword */
+.sf { color: #7dd3a8; } /* function */
+.ss { color: #f9c97c; } /* string */
+.sc { color: #5a6278; font-style: italic; } /* comment */
+.so { color: #86efac; } /* output */
+
+/* ── ACTIVITY FEED ─────────────── */
+.activity-item {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-icon {
+  width: 28px; height: 28px; border-radius: 6px;
+  background: var(--bg-2); display: flex; align-items: center;
+  justify-content: center; flex-shrink: 0; font-size: 12px;
+}
+.activity-text { font-size: 12px; color: var(--ink-2); flex: 1; }
+.activity-text strong { color: var(--ink); font-weight: 500; }
+.activity-time { font-size: 10px; color: var(--ink-3); font-family: var(--mono); flex-shrink: 0; }
+
+/* ── SECTION HEADER ────────────── */
+.section-hdr {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.section-hdr h2 { font-size: 14px; font-weight: 600; }
+.section-hdr a { font-size: 12px; color: var(--accent); text-decoration: none; }
+
+/* ── WEBHOOK ROW ───────────────── */
+.webhook-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 14px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg);
+  margin-bottom: 8px; font-size: 12px;
+}
+.webhook-url { font-family: var(--mono); color: var(--ink-2); flex: 1; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.webhook-events { display: flex; gap: 4px; }
+.event-tag { background: var(--bg-2); border: 1px solid var(--border); padding: 1px 6px; border-radius: 3px; font-size: 10px; font-family: var(--mono); color: var(--ink-3); }
+
+/* ── PLAN CARD ─────────────────── */
+.plan-card {
+  background: linear-gradient(135deg, var(--bg-2), var(--bg-1));
+  border: 1px solid rgba(108,143,255,0.2);
+  border-radius: 8px;
+  padding: 20px;
+}
+.plan-name-big { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 4px; }
+.plan-price-big { font-size: 13px; color: var(--ink-3); font-family: var(--mono); margin-bottom: 14px; }
+.plan-feature-list { list-style: none; }
+.plan-feature-list li {
+  display: flex; gap: 8px; font-size: 12px; color: var(--ink-2);
+  padding: 5px 0; border-bottom: 1px solid var(--border);
+}
+.plan-feature-list li:last-child { border-bottom: none; }
+.plan-check { color: var(--green); flex-shrink: 0; }
+
+/* ── TOGGLE ────────────────────── */
+.toggle {
+  width: 36px; height: 20px; border-radius: 10px;
+  background: var(--bg-3); cursor: pointer; position: relative;
+  transition: background 0.2s; flex-shrink: 0; border: none;
+}
+.toggle.on { background: var(--accent); }
+.toggle::after {
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 14px; height: 14px; border-radius: 50%; background: #fff;
+  transition: transform 0.2s;
+}
+.toggle.on::after { transform: translateX(16px); }
+
+/* ── INPUT ─────────────────────── */
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: 11px; color: var(--ink-2); margin-bottom: 5px; display: block; letter-spacing: 0.04em; }
+.form-input {
+  width: 100%; padding: 8px 12px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 5px; color: var(--ink); font-family: var(--mono);
+  font-size: 12px; transition: border-color 0.15s; outline: none;
+}
+.form-input:focus { border-color: var(--accent); }
+
+/* ── INVOICE ROW ───────────────── */
+.invoice-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.invoice-row:last-child { border-bottom: none; }
+.inv-month { color: var(--ink-2); width: 80px; font-family: var(--mono); }
+.inv-desc { flex: 1; color: var(--ink-2); }
+.inv-amount { font-family: var(--mono); font-weight: 600; }
+.inv-dl { color: var(--accent); cursor: pointer; font-size: 11px; }
+
+/* ── PAGES ─────────────────────── */
+.page { display: none; }
+.page.active { display: block; animation: fadeIn 0.25s ease; }
+
+/* ── NOTIFICATION DOT ──────────── */
+.notif-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--red);
+  position: absolute; top: 2px; right: 2px;
+}
+
+/* ── EMPTY STATE ───────────────── */
+.empty-state {
+  text-align: center; padding: 48px 24px;
+  color: var(--ink-3);
+}
+.empty-icon { font-size: 32px; margin-bottom: 12px; opacity: 0.4; }
+.empty-text { font-size: 13px; color: var(--ink-2); margin-bottom: 6px; }
+.empty-sub { font-size: 12px; }
+
+/* ── REGION BADGE ──────────────── */
+.region-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; background: var(--bg-2); border: 1px solid var(--border);
+  border-radius: 4px; font-size: 10px; font-family: var(--mono); color: var(--ink-3);
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<!-- ── SIDEBAR ── -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <g stroke="#6c8fff" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path stroke-width="4" d="M18 48 C16 39 20 31 24 25 C26 21 26 17 22 15"/>
+          <path stroke-width="4" d="M30 48 C29 38 33 29 36 23 C38 18 36 14 32 13"/>
+          <path stroke-width="4" d="M41 48 C41 38 45 30 47 24 C49 18 46 13 42 13"/>
+          <ellipse cx="32" cy="52" rx="15" ry="4" stroke-width="2.5" opacity="0.4"/>
+        </g>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">ClawDB</div>
+      <div class="logo-sub">cloud</div>
+    </div>
+  </div>
+
+  <div class="ws-switcher" onclick="alert('Workspace switcher')">
+    <span class="ws-dot"></span>
+    <span class="ws-name">personal-agents</span>
+    <span class="ws-chevron">⌄</span>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Overview</div>
+    <div class="nav-item active" onclick="showPage('dashboard',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="2" width="5" height="5" rx="1"/><rect x="9" y="2" width="5" height="5" rx="1"/><rect x="2" y="9" width="5" height="5" rx="1"/><rect x="9" y="9" width="5" height="5" rx="1"/></svg>
+      Dashboard
+    </div>
+    <div class="nav-item" onclick="showPage('usage',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="2,12 5,7 8,9 11,4 14,6"/></svg>
+      Usage &amp; Metrics
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Access</div>
+    <div class="nav-item" onclick="showPage('apikeys',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="10" r="3"/><path d="M9 10h5"/><path d="M12 10v-2"/></svg>
+      API Keys
+      <span class="nav-badge">2</span>
+    </div>
+    <div class="nav-item" onclick="showPage('team',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="5" r="2.5"/><path d="M2 13c0-2.2 1.8-4 4-4s4 1.8 4 4"/><circle cx="12" cy="5" r="2"/><path d="M12 9c1.7 0 3 1.3 3 3"/></svg>
+      Team
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Infrastructure</div>
+    <div class="nav-item" onclick="showPage('workspaces',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="9" rx="1.5"/><path d="M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1"/></svg>
+      Workspaces
+    </div>
+    <div class="nav-item" onclick="showPage('synchub',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 8a5 5 0 0110 0"/><path d="M3 8a5 5 0 0010 0"/><path d="M8 3v2M8 11v2"/></svg>
+      Sync Hub
+      <span class="nav-badge green">●</span>
+    </div>
+    <div class="nav-item" onclick="showPage('webhooks',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 3a3 3 0 000 6h4"/><path d="M10 9a3 3 0 010 6H6"/><path d="M10 3l2 2-2 2"/></svg>
+      Webhooks
+    </div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Account</div>
+    <div class="nav-item" onclick="showPage('billing',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="12" height="9" rx="1"/><path d="M2 7h12"/></svg>
+      Billing
+      <span class="nav-badge amber">!</span>
+    </div>
+    <div class="nav-item" onclick="showPage('settings',this)">
+      <svg class="nav-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.5"/><path d="M8 2v1.5M8 12.5V14M2 8h1.5M12.5 8H14M3.5 3.5l1 1M11.5 11.5l1 1M3.5 12.5l1-1M11.5 4.5l1-1"/></svg>
+      Settings
+    </div>
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="user-row">
+      <div class="avatar">A</div>
+      <div class="user-info">
+        <div class="user-name">alex@acme.dev</div>
+        <div class="user-plan">Pro plan</div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── MAIN ── -->
+<div class="main">
+
+<!-- ════ DASHBOARD ════ -->
+<div class="page active" id="page-dashboard">
+  <div class="topbar">
+    <div class="page-title">Dashboard</div>
+    <div class="topbar-actions">
+      <span class="region-badge">🌍 eu-west-1</span>
+      <button class="btn btn-ghost btn-sm">⟳ Refresh</button>
+      <button class="btn btn-primary btn-sm" onclick="showPage('apikeys',document.querySelector('.nav-item:nth-child(3)'))">+ New API Key</button>
+    </div>
+  </div>
+  <div class="content">
+
+    <!-- Onboarding banner -->
+    <div class="onboarding-banner">
+      <div class="ob-icon">🚀</div>
+      <div class="ob-text">
+        <div class="ob-title">Complete your setup — 2 of 4 steps done</div>
+        <div class="ob-sub">Connect your agent to start storing memory in the cloud.</div>
+      </div>
+      <div class="ob-progress">
+        <div class="ob-step done">✓</div>
+        <div class="ob-step done">✓</div>
+        <div class="ob-step current">3</div>
+        <div class="ob-step todo">4</div>
+      </div>
+      <button class="btn btn-primary btn-sm">Continue →</button>
+      <button class="btn btn-ghost btn-sm" onclick="this.closest('.onboarding-banner').remove()">✕</button>
+    </div>
+
+    <!-- Metric tiles -->
+    <div class="metric-grid">
+      <div class="metric-tile blue">
+        <div class="metric-label">Memory Ops</div>
+        <div class="metric-value" style="color:var(--accent)">84.2k</div>
+        <div class="metric-trend trend-up">↑ 12% vs last 7d</div>
+      </div>
+      <div class="metric-tile green">
+        <div class="metric-label">Sync Rounds</div>
+        <div class="metric-value" style="color:var(--green)">1,247</div>
+        <div class="metric-trend trend-up">↑ 8% vs last 7d</div>
+      </div>
+      <div class="metric-tile amber">
+        <div class="metric-label">Storage Used</div>
+        <div class="metric-value" style="color:var(--amber)">2.8 GB</div>
+        <div class="metric-trend trend-neutral">of 50 GB</div>
+      </div>
+      <div class="metric-tile purple">
+        <div class="metric-label">Active Sessions</div>
+        <div class="metric-value" style="color:var(--purple)">3</div>
+        <div class="metric-trend trend-neutral">2 agents, 1 user</div>
+      </div>
+    </div>
+
+    <div class="grid-7-5" style="margin-bottom:16px;">
+      <!-- Activity chart -->
+      <div class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">Memory Operations</div>
+            <div class="card-subtitle">Last 14 days · all workspaces</div>
+          </div>
+          <select style="background:var(--bg-2);border:1px solid var(--border);color:var(--ink-2);font-size:11px;padding:4px 8px;border-radius:4px;font-family:var(--mono);cursor:pointer;">
+            <option>14 days</option>
+            <option>30 days</option>
+          </select>
+        </div>
+        <div class="card-body">
+          <div class="chart-area" id="opsChart"></div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);font-family:var(--mono);margin-top:6px;">
+            <span>Apr 21</span><span>Apr 28</span><span>May 4</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick API key -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Active API Key</div>
+          <span class="status-pill pill-green"><span class="pill-dot"></span>live</span>
+        </div>
+        <div class="card-body">
+          <div class="api-key-block">
+            <div class="api-key-value">sk_live_••••••••••••4f2a</div>
+            <div class="copy-btn" onclick="this.textContent='✓ Copied';setTimeout(()=>this.textContent='Copy',1500)">Copy</div>
+          </div>
+          <div style="font-size:11px;color:var(--ink-3);margin-bottom:16px;">
+            Last used <strong style="color:var(--ink-2)">2 minutes ago</strong> · Created Apr 12, 2026
+          </div>
+
+          <div style="font-size:12px;font-weight:600;margin-bottom:10px;">Quick connect</div>
+          <div class="install-snippet">
+            <div class="snippet-header">
+              <div class="snippet-dot" style="background:#ff5f57"></div>
+              <div class="snippet-dot" style="background:#febc2e"></div>
+              <div class="snippet-dot" style="background:#28c840"></div>
+              <div class="snippet-tab active">TS</div>
+              <div class="snippet-tab">Python</div>
+            </div>
+            <div class="snippet-body">
+<span class="sk">import</span> clawdb <span class="sk">from</span> <span class="ss">'@clawdb/sdk'</span>
+<span class="sc">// CLAWDB_API_KEY is set in .env</span>
+<span class="sk">const</span> db = <span class="sk">await</span> <span class="sf">clawdb</span>()
+<span class="sk">await</span> db.memory.<span class="sf">remember</span>(<span class="ss">"hello"</span>)
+<span class="so">// ✓ syncing to cloud.clawdb.dev</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <!-- Recent activity -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">Recent Activity</div>
+          <a href="#" style="font-size:11px;color:var(--accent);text-decoration:none;">View audit log →</a>
+        </div>
+        <div class="card-body" style="padding:12px 18px;">
+          <div class="activity-item">
+            <div class="activity-icon">🔑</div>
+            <div class="activity-text"><strong>API key used</strong> — sk_live_••••4f2a · agent-prod</div>
+            <div class="activity-time">2m ago</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon">↕</div>
+            <div class="activity-text"><strong>Sync round</strong> — 42 pushed, 7 pulled · eu-west-1</div>
+            <div class="activity-time">8m ago</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon">🧠</div>
+            <div class="activity-text"><strong>Reflect job</strong> — 18 facts extracted, 3 duplicates removed</div>
+            <div class="activity-time">1h ago</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon">⚠️</div>
+            <div class="activity-text"><strong>Rate limit hit</strong> — 1003/min exceeded · auto-throttled</div>
+            <div class="activity-time">3h ago</div>
+          </div>
+          <div class="activity-item">
+            <div class="activity-icon">👤</div>
+            <div class="activity-text"><strong>Team invite sent</strong> — bob@acme.dev</div>
+            <div class="activity-time">yesterday</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Usage overview -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">This Month's Usage</div>
+          <span style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">Resets May 31</span>
+        </div>
+        <div class="card-body">
+          <div class="usage-row">
+            <div class="usage-meta">
+              <span class="usage-label">Memory ops</span>
+              <span class="usage-numbers">84.2k / unlimited</span>
+            </div>
+            <div class="usage-bar"><div class="usage-fill fill-accent" style="width:14%"></div></div>
+          </div>
+          <div class="usage-row">
+            <div class="usage-meta">
+              <span class="usage-label">Storage</span>
+              <span class="usage-numbers">2.8 / 50 GB</span>
+            </div>
+            <div class="usage-bar"><div class="usage-fill fill-green" style="width:6%"></div></div>
+          </div>
+          <div class="usage-row">
+            <div class="usage-meta">
+              <span class="usage-label">Sync bandwidth</span>
+              <span class="usage-numbers">1.2 / 100 GB</span>
+            </div>
+            <div class="usage-bar"><div class="usage-fill fill-accent" style="width:1%"></div></div>
+          </div>
+          <div class="usage-row">
+            <div class="usage-meta">
+              <span class="usage-label">Reflect jobs</span>
+              <span class="usage-numbers">247 / unlimited</span>
+            </div>
+            <div class="usage-bar"><div class="usage-fill fill-amber" style="width:25%"></div></div>
+          </div>
+          <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <div>
+                <div style="font-size:12px;font-weight:600;">Pro Plan</div>
+                <div style="font-size:11px;color:var(--ink-3);">$29 / month · next invoice May 31</div>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="showPage('billing',null)">Manage →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ API KEYS ════ -->
+<div class="page" id="page-apikeys">
+  <div class="topbar">
+    <div class="page-title">API Keys</div>
+    <div class="topbar-actions">
+      <button class="btn btn-primary btn-sm" onclick="alert('Generate new API key dialog')">+ Create Key</button>
+    </div>
+  </div>
+  <div class="content">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-body" style="padding:14px 18px;">
+        <div style="font-size:12px;color:var(--ink-2);margin-bottom:4px;">ⓘ API keys grant full access to your workspace. Never expose them in client-side code or public repositories.</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header">
+        <div class="card-title">Live Keys</div>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Name</th><th>Key</th><th>Created</th><th>Last Used</th><th>Requests (30d)</th><th>Status</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="font-weight:500">agent-prod</td>
+            <td class="mono-cell">sk_live_••••••••••••4f2a</td>
+            <td class="mono-cell">Apr 12, 2026</td>
+            <td class="mono-cell">2 min ago</td>
+            <td class="mono-cell" style="color:var(--accent)">84,219</td>
+            <td><span class="status-pill pill-green"><span class="pill-dot"></span>active</span></td>
+            <td><button class="btn btn-ghost btn-sm">⋯</button></td>
+          </tr>
+          <tr>
+            <td style="font-weight:500">dev-local</td>
+            <td class="mono-cell">sk_live_••••••••••••9c1b</td>
+            <td class="mono-cell">Mar 28, 2026</td>
+            <td class="mono-cell">3 days ago</td>
+            <td class="mono-cell">1,042</td>
+            <td><span class="status-pill pill-green"><span class="pill-dot"></span>active</span></td>
+            <td><button class="btn btn-ghost btn-sm">⋯</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Revoked Keys</div></div>
+      <table class="data-table">
+        <thead><tr><th>Name</th><th>Key</th><th>Revoked</th><th>Reason</th></tr></thead>
+        <tbody>
+          <tr>
+            <td style="font-weight:500;opacity:.5">ci-pipeline</td>
+            <td class="mono-cell" style="opacity:.5">sk_live_••••••••••••7e3d</td>
+            <td class="mono-cell" style="opacity:.5">Apr 1, 2026</td>
+            <td style="font-size:12px;color:var(--ink-3)">Manual revocation</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ════ USAGE ════ -->
+<div class="page" id="page-usage">
+  <div class="topbar">
+    <div class="page-title">Usage &amp; Metrics</div>
+    <div class="topbar-actions">
+      <select style="background:var(--bg-2);border:1px solid var(--border);color:var(--ink-2);font-size:12px;padding:6px 10px;border-radius:5px;font-family:var(--mono);cursor:pointer;">
+        <option>May 2026</option><option>April 2026</option>
+      </select>
+    </div>
+  </div>
+  <div class="content">
+    <div class="metric-grid">
+      <div class="metric-tile blue"><div class="metric-label">Total Ops</div><div class="metric-value" style="color:var(--accent)">247k</div><div class="metric-trend trend-up">↑ 34% MoM</div></div>
+      <div class="metric-tile green"><div class="metric-label">Avg Latency</div><div class="metric-value" style="color:var(--green)">4.2ms</div><div class="metric-trend trend-up">↓ 0.8ms faster</div></div>
+      <div class="metric-tile amber"><div class="metric-label">Error Rate</div><div class="metric-value" style="color:var(--amber)">0.02%</div><div class="metric-trend trend-neutral">p99 SLA met</div></div>
+      <div class="metric-tile purple"><div class="metric-label">Reflect Jobs</div><div class="metric-value" style="color:var(--purple)">891</div><div class="metric-trend trend-up">↑ 22% MoM</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><div class="card-title">Operations Breakdown</div></div>
+      <div class="card-body">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;text-align:center;">
+          <div><div style="font-size:22px;font-weight:700;color:var(--accent)">142k</div><div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">remember</div></div>
+          <div><div style="font-size:22px;font-weight:700;color:var(--green)">68k</div><div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">search</div></div>
+          <div><div style="font-size:22px;font-weight:700;color:var(--purple)">24k</div><div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">recall</div></div>
+          <div><div style="font-size:22px;font-weight:700;color:var(--amber)">8.2k</div><div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">branch/merge</div></div>
+          <div><div style="font-size:22px;font-weight:700;color:var(--ink-2)">4.8k</div><div style="font-size:11px;color:var(--ink-3);font-family:var(--mono)">sync</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Usage by API Key</div></div>
+      <table class="data-table">
+        <thead><tr><th>Key Name</th><th>Memory Ops</th><th>Sync Ops</th><th>Storage</th><th>Cost Share</th></tr></thead>
+        <tbody>
+          <tr>
+            <td style="font-weight:500">agent-prod</td>
+            <td class="mono-cell" style="color:var(--accent)">84,219</td>
+            <td class="mono-cell">1,247</td>
+            <td class="mono-cell">2.6 GB</td>
+            <td class="mono-cell">94%</td>
+          </tr>
+          <tr>
+            <td style="font-weight:500">dev-local</td>
+            <td class="mono-cell">1,042</td>
+            <td class="mono-cell">38</td>
+            <td class="mono-cell">0.2 GB</td>
+            <td class="mono-cell">6%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ════ SYNC HUB ════ -->
+<div class="page" id="page-synchub">
+  <div class="topbar">
+    <div class="page-title">Sync Hub</div>
+    <div class="topbar-actions">
+      <span class="status-pill pill-green" style="font-size:11px;"><span class="pill-dot"></span>hub operational</span>
+    </div>
+  </div>
+  <div class="content">
+    <div class="metric-grid">
+      <div class="metric-tile green"><div class="metric-label">Hub Status</div><div class="metric-value" style="color:var(--green);font-size:20px">Healthy</div><div class="metric-trend trend-neutral">99.98% uptime</div></div>
+      <div class="metric-tile blue"><div class="metric-label">Registered Devices</div><div class="metric-value" style="color:var(--accent)">4</div><div class="metric-trend trend-neutral">2 active now</div></div>
+      <div class="metric-tile amber"><div class="metric-label">Queue Depth</div><div class="metric-value" style="color:var(--amber)">0</div><div class="metric-trend trend-up">all clear</div></div>
+      <div class="metric-tile purple"><div class="metric-label">Audit Chain</div><div class="metric-value" style="color:var(--green);font-size:20px">Verified</div><div class="metric-trend trend-neutral">last check 2m ago</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Registered Devices</div></div>
+      <table class="data-table">
+        <thead><tr><th>Device ID</th><th>Workspace</th><th>Last Seen</th><th>Pull Cursor</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="mono-cell">dev_a1f2…3c9e</td>
+            <td style="font-size:12px">personal-agents</td>
+            <td class="mono-cell">30s ago</td>
+            <td class="mono-cell" style="color:var(--accent)">1,247</td>
+            <td><span class="status-pill pill-green"><span class="pill-dot"></span>online</span></td>
+          </tr>
+          <tr>
+            <td class="mono-cell">dev_b2e8…7f1a</td>
+            <td style="font-size:12px">personal-agents</td>
+            <td class="mono-cell">4 min ago</td>
+            <td class="mono-cell" style="color:var(--accent)">1,241</td>
+            <td><span class="status-pill pill-green"><span class="pill-dot"></span>online</span></td>
+          </tr>
+          <tr>
+            <td class="mono-cell">dev_c9a3…2b7d</td>
+            <td style="font-size:12px">personal-agents</td>
+            <td class="mono-cell">2 days ago</td>
+            <td class="mono-cell">1,198</td>
+            <td><span class="status-pill pill-amber">idle</span></td>
+          </tr>
+          <tr>
+            <td class="mono-cell">dev_d4c1…8e2f</td>
+            <td style="font-size:12px">personal-agents</td>
+            <td class="mono-cell">8 days ago</td>
+            <td class="mono-cell">1,022</td>
+            <td><span class="status-pill pill-red">stale</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ════ BILLING ════ -->
+<div class="page" id="page-billing">
+  <div class="topbar">
+    <div class="page-title">Billing</div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost btn-sm">Download all invoices</button>
+    </div>
+  </div>
+  <div class="content">
+    <div class="card" style="margin-bottom:16px;border-color:rgba(245,158,11,0.25);">
+      <div class="card-body" style="padding:14px 18px;display:flex;align-items:center;gap:12px;">
+        <div style="font-size:18px">⚠️</div>
+        <div>
+          <div style="font-size:13px;font-weight:600;color:var(--amber)">Payment method expires soon</div>
+          <div style="font-size:12px;color:var(--ink-2)">Your card ending in 4242 expires 06/26. Update before your next invoice on May 31.</div>
+        </div>
+        <button class="btn btn-primary btn-sm" style="margin-left:auto">Update card →</button>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:16px;">
+      <div class="plan-card">
+        <div class="plan-name-big">Pro</div>
+        <div class="plan-price-big">$29 / month · renews May 31, 2026</div>
+        <ul class="plan-feature-list">
+          <li><span class="plan-check">✓</span> Unlimited memory operations</li>
+          <li><span class="plan-check">✓</span> 50 GB storage</li>
+          <li><span class="plan-check">✓</span> 10 workspaces</li>
+          <li><span class="plan-check">✓</span> Priority support</li>
+        </ul>
+        <div style="margin-top:16px;display:flex;gap:8px;">
+          <button class="btn btn-primary btn-sm">Upgrade to Enterprise</button>
+          <button class="btn btn-danger btn-sm">Cancel plan</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><div class="card-title">Payment Method</div></div>
+        <div class="card-body">
+          <div style="display:flex;align-items:center;gap:12px;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;margin-bottom:12px;">
+            <div style="font-size:22px;">💳</div>
+            <div>
+              <div style="font-size:13px;font-weight:500;">Visa •••• 4242</div>
+              <div style="font-size:11px;color:var(--amber)">Expires 06/26</div>
+            </div>
+            <button class="btn btn-ghost btn-sm" style="margin-left:auto">Update</button>
+          </div>
+          <div style="font-size:12px;color:var(--ink-3)">Payments processed by Stripe. Your card details are never stored on our servers.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">Invoice History</div></div>
+      <div class="card-body" style="padding:12px 18px;">
+        <div class="invoice-row"><div class="inv-month">May 2026</div><div class="inv-desc">ClawDB Pro · 1 workspace</div><div class="inv-amount" style="color:var(--amber)">Pending</div><div class="inv-dl">—</div></div>
+        <div class="invoice-row"><div class="inv-month">Apr 2026</div><div class="inv-desc">ClawDB Pro · 1 workspace</div><div class="inv-amount">$29.00</div><div class="inv-dl">PDF ↓</div></div>
+        <div class="invoice-row"><div class="inv-month">Mar 2026</div><div class="inv-desc">ClawDB Pro · 1 workspace</div><div class="inv-amount">$29.00</div><div class="inv-dl">PDF ↓</div></div>
+        <div class="invoice-row"><div class="inv-month">Feb 2026</div><div class="inv-desc">ClawDB Starter → Pro upgrade</div><div class="inv-amount">$38.67</div><div class="inv-dl">PDF ↓</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ SETTINGS ════ -->
+<div class="page" id="page-settings">
+  <div class="topbar">
+    <div class="page-title">Settings</div>
+    <div class="topbar-actions">
+      <button class="btn btn-primary btn-sm" onclick="alert('Settings saved!')">Save changes</button>
+    </div>
+  </div>
+  <div class="content">
+    <div class="tabs">
+      <div class="tab active" onclick="setTab(this,'stab-general')">General</div>
+      <div class="tab" onclick="setTab(this,'stab-security')">Security</div>
+      <div class="tab" onclick="setTab(this,'stab-notifications')">Notifications</div>
+      <div class="tab" onclick="setTab(this,'stab-danger')">Danger Zone</div>
+    </div>
+
+    <div id="stab-general">
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-header"><div class="card-title">Workspace</div></div>
+          <div class="card-body">
+            <div class="form-group"><label class="form-label">Workspace name</label><input class="form-input" value="personal-agents"/></div>
+            <div class="form-group"><label class="form-label">Workspace slug</label><input class="form-input" value="personal-agents" style="color:var(--ink-3)"/></div>
+            <div class="form-group"><label class="form-label">Default region</label>
+              <select class="form-input" style="cursor:pointer;"><option>eu-west-1 (Frankfurt)</option><option>us-east-1 (Virginia)</option><option>ap-southeast-1 (Singapore)</option></select>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Account</div></div>
+          <div class="card-body">
+            <div class="form-group"><label class="form-label">Full name</label><input class="form-input" value="Alex Chen"/></div>
+            <div class="form-group"><label class="form-label">Email</label><input class="form-input" value="alex@acme.dev" type="email"/></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="stab-security" style="display:none">
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header"><div class="card-title">Two-factor authentication</div></div>
+        <div class="card-body">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;">
+            <div><div style="font-size:13px;font-weight:500;">Authenticator app</div><div style="font-size:12px;color:var(--ink-3)">Adds a second step to login</div></div>
+            <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><div class="card-title">Active sessions</div></div>
+        <table class="data-table">
+          <thead><tr><th>Device</th><th>Location</th><th>Last active</th><th></th></tr></thead>
+          <tbody>
+            <tr><td style="font-weight:500">Chrome · macOS <span class="status-pill pill-green" style="margin-left:6px">current</span></td><td class="mono-cell">Lagos, NG</td><td class="mono-cell">now</td><td></td></tr>
+            <tr><td style="font-weight:500">Safari · iPhone</td><td class="mono-cell">Lagos, NG</td><td class="mono-cell">2h ago</td><td><button class="btn btn-danger btn-sm">Revoke</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="stab-notifications" style="display:none">
+      <div class="card">
+        <div class="card-header"><div class="card-title">Email notifications</div></div>
+        <div class="card-body">
+          <div style="display:flex;flex-direction:column;gap:0;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);">
+              <div><div style="font-size:13px;font-weight:500;">Usage alerts (80%, 100%)</div><div style="font-size:12px;color:var(--ink-3)">Notified when you approach limits</div></div>
+              <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);">
+              <div><div style="font-size:13px;font-weight:500;">Billing receipts</div><div style="font-size:12px;color:var(--ink-3)">Invoice PDFs after each charge</div></div>
+              <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;">
+              <div><div style="font-size:13px;font-weight:500;">Security alerts</div><div style="font-size:12px;color:var(--ink-3)">New logins and API key usage</div></div>
+              <button class="toggle on" onclick="this.classList.toggle('on')"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="stab-danger" style="display:none">
+      <div class="card" style="border-color:rgba(239,68,68,0.2);">
+        <div class="card-header" style="border-bottom-color:rgba(239,68,68,0.15);"><div class="card-title" style="color:var(--red)">Danger Zone</div></div>
+        <div class="card-body">
+          <div style="padding:14px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
+            <div><div style="font-size:13px;font-weight:500;">Delete all memories</div><div style="font-size:12px;color:var(--ink-3)">Permanently erase all stored memories in this workspace.</div></div>
+            <button class="btn btn-danger btn-sm" onclick="confirm('Type DELETE to confirm') && alert('Memories deleted')">Delete memories</button>
+          </div>
+          <div style="padding:14px 0;display:flex;justify-content:space-between;align-items:center;">
+            <div><div style="font-size:13px;font-weight:500;">Delete workspace</div><div style="font-size:12px;color:var(--ink-3)">Permanently delete this workspace and all its data. This cannot be undone.</div></div>
+            <button class="btn btn-danger btn-sm" onclick="confirm('Are you sure?') && alert('Workspace deleted')">Delete workspace</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ TEAM ════ -->
+<div class="page" id="page-team">
+  <div class="topbar"><div class="page-title">Team</div><div class="topbar-actions"><button class="btn btn-primary btn-sm">+ Invite member</button></div></div>
+  <div class="content">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><div class="card-title">Members</div></div>
+      <table class="data-table">
+        <thead><tr><th>Member</th><th>Role</th><th>Joined</th><th>Last active</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><div style="display:flex;align-items:center;gap:10px;"><div class="avatar">A</div><div><div style="font-size:13px;font-weight:500;">Alex Chen</div><div style="font-size:11px;color:var(--ink-3)">alex@acme.dev</div></div></div></td><td><span class="status-pill pill-blue">Owner</span></td><td class="mono-cell">Mar 1, 2026</td><td class="mono-cell">now</td><td></td></tr>
+          <tr><td><div style="display:flex;align-items:center;gap:10px;"><div class="avatar" style="background:linear-gradient(135deg,var(--green),var(--accent))">B</div><div><div style="font-size:13px;font-weight:500;">Bob Kim</div><div style="font-size:11px;color:var(--ink-3)">bob@acme.dev</div></div></div></td><td><span class="status-pill pill-amber">Admin</span></td><td class="mono-cell">Apr 20, 2026</td><td class="mono-cell">1d ago</td><td><button class="btn btn-ghost btn-sm">⋯</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card"><div class="card-header"><div class="card-title">Pending invites</div></div><div style="padding:20px 18px;font-size:13px;color:var(--ink-3);text-align:center;">No pending invitations.</div></div>
+  </div>
+</div>
+
+<!-- ════ WORKSPACES ════ -->
+<div class="page" id="page-workspaces">
+  <div class="topbar"><div class="page-title">Workspaces</div><div class="topbar-actions"><button class="btn btn-primary btn-sm">+ New workspace</button></div></div>
+  <div class="content">
+    <div class="grid-3">
+      <div class="card" style="cursor:pointer;" onclick="">
+        <div class="card-body">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;"><div style="width:32px;height:32px;background:rgba(108,143,255,0.15);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">🤖</div><div><div style="font-size:13px;font-weight:600;">personal-agents</div><div style="font-size:11px;color:var(--ink-3);font-family:var(--mono);">4 API keys · active</div></div><span class="status-pill pill-green" style="margin-left:auto">current</span></div>
+          <div style="font-size:12px;color:var(--ink-3);">84.2k ops this month · eu-west-1</div>
+        </div>
+      </div>
+      <div class="card" style="cursor:pointer;border-style:dashed;display:flex;align-items:center;justify-content:center;min-height:100px;" onclick="alert('Create workspace')">
+        <div style="text-align:center;color:var(--ink-3);"><div style="font-size:24px;margin-bottom:6px;">+</div><div style="font-size:12px;">New workspace</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ WEBHOOKS ════ -->
+<div class="page" id="page-webhooks">
+  <div class="topbar"><div class="page-title">Webhooks</div><div class="topbar-actions"><button class="btn btn-primary btn-sm">+ Add endpoint</button></div></div>
+  <div class="content">
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-header"><div class="card-title">Endpoints</div></div>
+      <div class="card-body">
+        <div class="webhook-row">
+          <span class="status-pill pill-green" style="flex-shrink:0"><span class="pill-dot"></span>active</span>
+          <div class="webhook-url">https://api.acme.dev/hooks/clawdb/events</div>
+          <div class="webhook-events"><span class="event-tag">memory.written</span><span class="event-tag">sync.completed</span><span class="event-tag">reflect.run</span></div>
+          <button class="btn btn-ghost btn-sm">Test</button>
+          <button class="btn btn-ghost btn-sm">⋯</button>
+        </div>
+        <div class="webhook-row">
+          <span class="status-pill pill-amber" style="flex-shrink:0">failing</span>
+          <div class="webhook-url">https://staging.acme.dev/hooks/clawdb</div>
+          <div class="webhook-events"><span class="event-tag">policy.denied</span></div>
+          <button class="btn btn-ghost btn-sm">Test</button>
+          <button class="btn btn-ghost btn-sm">⋯</button>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><div class="card-title">Recent deliveries</div></div>
+      <table class="data-table">
+        <thead><tr><th>Event</th><th>Endpoint</th><th>Status</th><th>Duration</th><th>Time</th></tr></thead>
+        <tbody>
+          <tr><td class="mono-cell">memory.written</td><td class="mono-cell" style="font-size:10px">api.acme.dev</td><td><span class="status-pill pill-green">200 OK</span></td><td class="mono-cell">42ms</td><td class="mono-cell">2m ago</td></tr>
+          <tr><td class="mono-cell">sync.completed</td><td class="mono-cell" style="font-size:10px">api.acme.dev</td><td><span class="status-pill pill-green">200 OK</span></td><td class="mono-cell">38ms</td><td class="mono-cell">8m ago</td></tr>
+          <tr><td class="mono-cell">policy.denied</td><td class="mono-cell" style="font-size:10px">staging.acme.dev</td><td><span class="status-pill pill-red">503</span></td><td class="mono-cell">5001ms</td><td class="mono-cell">1h ago</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ── NAVIGATION ──
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + id).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  if (el) el.classList.add('active');
+}
+
+// ── TABS ──
+function setTab(tab, targetId) {
+  const parent = tab.closest('.content');
+  parent.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  tab.classList.add('active');
+  // Hide all stab siblings
+  ['stab-general','stab-security','stab-notifications','stab-danger'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = id === targetId ? '' : 'none';
+  });
+}
+
+// ── CHART ──
+function buildChart() {
+  const data = [12,18,15,22,31,28,24,35,42,38,45,52,48,61];
+  const max = Math.max(...data);
+  const chart = document.getElementById('opsChart');
+  if (!chart) return;
+  chart.innerHTML = data.map((v,i) =>
+    `<div class="chart-bar${i===data.length-1?' today':''}" style="height:${(v/max*100)}%"></div>`
+  ).join('');
+}
+
+window.addEventListener('load', buildChart);
+</script>
+</body>
+</html>

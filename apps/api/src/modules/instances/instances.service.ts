@@ -74,7 +74,10 @@ export class InstancesService {
 
   async findAll(workspaceId: string): Promise<Instance[]> {
     return this.prisma.instance.findMany({
-      where: { workspaceId },
+      where: {
+        workspaceId,
+        status: { not: 'TERMINATED' },
+      },
       orderBy: { createdAt: 'asc' },
     });
   }

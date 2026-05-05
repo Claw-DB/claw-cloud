@@ -2,7 +2,7 @@
 
 ## Reporting Vulnerabilities
 
-Please report vulnerabilities privately to security@clawdb.io.
+Please report vulnerabilities privately to security@clawdb.dev.
 Do not create public GitHub issues for security findings.
 
 ## Response Targets

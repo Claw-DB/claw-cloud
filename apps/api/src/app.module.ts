@@ -1,7 +1,8 @@
 // Root NestJS module — wires all feature modules together
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { WorkspacesModule } from './modules/workspaces/workspaces.module.js';
 import { InstancesModule } from './modules/instances/instances.module.js';
@@ -14,13 +15,15 @@ import { TelemetryModule } from './modules/telemetry/telemetry.module.js';
 import { AdminModule } from './modules/admin/admin.module.js';
 import { EnterpriseModule } from './modules/enterprise/enterprise.module.js';
 import { GatewayModule } from './modules/gateway/gateway.module.js';
+import { ChatbotModule } from './modules/chatbot/chatbot.module.js';
+import { NotificationsModule } from './modules/notifications/notifications.module.js';
 import { PrismaModule } from './modules/prisma/prisma.module.js';
 import { TenantContextMiddleware } from './common/middleware/tenant-context.middleware.js';
 import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware.js';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({ isGlobal: true, envFilePath: ['../../.env', '.env'] }),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]),
     PrismaModule,
     AuthModule,
@@ -35,6 +38,14 @@ import { RateLimitMiddleware } from './common/middleware/rate-limit.middleware.j
     AdminModule,
     EnterpriseModule,
     GatewayModule,
+    ChatbotModule,
+    NotificationsModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
   ],
 })
 export class AppModule implements NestModule {

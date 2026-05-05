@@ -1,8 +1,7 @@
 // JwtStrategy — validates Bearer tokens, checks session validity, and attaches user to request
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
-import { ConfigService } from '@nestjs/config';
 import { AuthService } from '../auth.service.js';
 import { User } from '@prisma/client';
 
@@ -16,14 +15,14 @@ interface JwtPayload {
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
-    config: ConfigService,
-    private readonly authService: AuthService,
+    @Inject(AuthService) private readonly authService: AuthService,
   ) {
+    const jwtSecret = process.env.JWT_SECRET ?? 'change-me-in-production-min-32-chars';
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_PUBLIC_KEY')?.replace(/\\n/g, '\n'),
-      algorithms: ['RS256'],
+      secretOrKey: jwtSecret,
+      algorithms: ['HS256'],
     });
   }
 
