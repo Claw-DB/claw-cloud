@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Prisma schema, generated client, and migrations for claw-cloud",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc --project tsconfig.json",

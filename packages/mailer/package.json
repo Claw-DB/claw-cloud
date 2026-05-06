@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Transactional email module using Resend for claw-cloud",
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "types": "./src/index.ts",
   "scripts": {
     "build": "tsc --project tsconfig.json",

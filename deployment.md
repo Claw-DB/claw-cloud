@@ -189,8 +189,8 @@ POSTGRES_DB=clawcloud
 REDIS_PASSWORD=REPLACE_WITH_STRONG_PASSWORD
 
 # API service connection URLs
-DATABASE_URL=postgresql://clawcloud:REPLACE_WITH_STRONG_PASSWORD@postgres:5432/clawcloud
-REDIS_URL=redis://:REPLACE_WITH_STRONG_PASSWORD@redis:6379
+DATABASE_URL=postgresql://clawcloud:0x9f2EdCE3a34e42eaf8f965d4E14aDDd12Cf865f4@postgres:5432/clawcloud
+REDIS_URL=redis://:0x9f2EdCE3a34e42eaf8f965d4E14aDDd12Cf865f4@redis:6379
 
 # Email
 RESEND_API_KEY=re_xxx
@@ -254,7 +254,7 @@ services:
       retries: 10
 
   api:
-    image: ghcr.io/YOUR_ORG/claw-cloud-api:latest
+    image: ghcr.io/claw-db/claw-cloud-api:latest
     restart: unless-stopped
     env_file:
       - .env
@@ -272,7 +272,7 @@ services:
       - /etc/rancher/k3s/k3s.yaml:/k3s/k3s.yaml:ro
 
   worker:
-    image: ghcr.io/YOUR_ORG/claw-cloud-worker:latest
+    image: ghcr.io/claw-db/claw-cloud-worker:latest
     restart: unless-stopped
     env_file:
       - .env
@@ -324,6 +324,55 @@ docker build -f apps/worker/Dockerfile -t claw-cloud-worker:local .
 ```
 
 Then update compose image names accordingly.
+
+### 7.3 Sync local code changes to EC2 before rebuilding
+
+If you have made local changes (such as Dockerfile fixes) that are not yet pushed to git, you must transfer those files to EC2 before running docker build there.
+
+**Option A — git push then pull (recommended)**
+
+On your local machine:
+
+```bash
+git add apps/api/Dockerfile apps/worker/Dockerfile
+git commit -m "fix: add prisma generate to docker builder stage"
+git push
+```
+
+On EC2:
+
+```bash
+cd /opt/claw-cloud
+git pull
+```
+
+**Option B — copy individual files with scp (if you cannot push yet)**
+
+On your local machine:
+
+```bash
+scp -i claw.pem \
+  apps/api/Dockerfile \
+  ubuntu@ec2-54-208-166-7.compute-1.amazonaws.com:/opt/claw-cloud/claw-cloud/apps/api/Dockerfile
+
+scp -i claw.pem \
+  apps/worker/Dockerfile \
+  ubuntu@ec2-54-208-166-7.compute-1.amazonaws.com:/opt/claw-cloud/claw-cloud/apps/worker/Dockerfile
+```
+
+Then run docker build on EC2 as normal.
+
+**What the Dockerfile fix does**
+
+Both Dockerfiles now run `prisma generate` inside the builder stage before the TypeScript compile:
+
+```dockerfile
+COPY . .
+RUN pnpm exec prisma generate --schema=packages/db/prisma/schema.prisma
+RUN pnpm --filter @claw/api build   # or @claw/worker
+```
+
+Without this step, `@prisma/client` has no generated types and the build fails with ~85 TypeScript errors. The worker Dockerfile also now copies the `packages/db`, `packages/mailer`, and `packages/billing` package manifests in the deps stage so that all workspace dependencies install correctly.
 
 ---
 

@@ -235,6 +235,9 @@ importers:
       '@types/supertest':
         specifier: ^7.2.0
         version: 7.2.0
+      prisma:
+        specifier: ^5.14.0
+        version: 5.22.0
       rimraf:
         specifier: ^5.0.0
         version: 5.0.10
@@ -399,6 +402,9 @@ importers:
       '@types/node':
         specifier: ^20.0.0
         version: 20.19.39
+      prisma:
+        specifier: ^5.14.0
+        version: 5.22.0
       rimraf:
         specifier: ^5.0.0
         version: 5.0.10
