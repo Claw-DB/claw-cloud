@@ -6,6 +6,9 @@ FROM base AS deps
 WORKDIR /app
 COPY pnpm-workspace.yaml pnpm-lock.yaml package.json ./
 COPY packages/common/package.json packages/common/
+COPY packages/db/package.json packages/db/
+COPY packages/mailer/package.json packages/mailer/
+COPY packages/billing/package.json packages/billing/
 COPY apps/worker/package.json apps/worker/
 RUN pnpm install --frozen-lockfile --filter @claw/worker...
 
@@ -14,6 +17,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/apps/worker/node_modules ./apps/worker/node_modules
 COPY . .
+RUN pnpm exec prisma generate --schema=packages/db/prisma/schema.prisma
 RUN pnpm --filter @claw/worker build
 
 FROM node:20-alpine AS runner
