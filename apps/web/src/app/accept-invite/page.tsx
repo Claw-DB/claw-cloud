@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import { Button, Card, CardBody, CardHeader, CardTitle } from '@/components/ui';
@@ -15,7 +15,7 @@ type InviteInfo = {
   expiresAt: string;
 };
 
-export default function AcceptInvitePage() {
+function AcceptInviteContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const inviteToken = useMemo(() => searchParams.get('token') ?? '', [searchParams]);
@@ -139,5 +139,13 @@ export default function AcceptInvitePage() {
         </CardBody>
       </Card>
     </main>
+  );
+}
+
+export default function AcceptInvitePage() {
+  return (
+    <Suspense>
+      <AcceptInviteContent />
+    </Suspense>
   );
 }
