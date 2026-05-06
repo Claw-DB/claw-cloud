@@ -1,37 +1,45 @@
 // Shared Zod schemas and validation DTOs used across the API
 import { z } from 'zod';
 
+// Reusable primitives
+const email = z.string().email().max(254).transform((s) => s.toLowerCase().trim());
+const password = z.string().min(8).max(128);
+// Allows letters (including unicode), numbers, spaces, and common name punctuation
+const displayName = z.string().min(1).max(100).regex(/^[\p{L}\p{N}\s\-'.]+$/u, 'Name contains invalid characters');
+const safeString = (max: number) => z.string().min(1).max(max);
+const url2048 = z.string().url().max(2048);
+
 export const RegisterDto = z.object({
-  email: z.string().email(),
-  password: z.string().min(8).max(128),
-  name: z.string().min(1).max(100),
+  email,
+  password,
+  name: displayName,
 });
 
 export const LoginDto = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
+  email,
+  password,
 });
 
 export const VerifyTotpDto = z.object({
-  tempToken: z.string().min(1),
+  tempToken: z.string().min(1).max(512),
   code: z.string().regex(/^\d{6}$/),
 });
 
 export const RefreshTokenDto = z.object({
-  refreshToken: z.string().min(1),
+  refreshToken: z.string().min(1).max(512),
 });
 
 export const ForgotPasswordDto = z.object({
-  email: z.string().email(),
+  email,
 });
 
 export const ResetPasswordDto = z.object({
-  token: z.string().min(1),
-  password: z.string().min(8).max(128),
+  token: z.string().min(1).max(512),
+  password,
 });
 
 export const MagicLinkDto = z.object({
-  email: z.string().email(),
+  email,
 });
 
 export const ConfirmTotpDto = z.object({
@@ -60,7 +68,7 @@ export const UpdateWorkspaceDto = z
       .max(50)
       .regex(/^[a-z0-9-]+$/)
       .optional(),
-    metadata: z.record(z.any()).optional(),
+    metadata: z.record(z.union([z.string().max(1024), z.number(), z.boolean()])).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, 'At least one field is required');
 
@@ -84,7 +92,7 @@ export const CreateApiKeyDto = z.object({
 });
 
 export const InviteMemberDto = z.object({
-  email: z.string().email(),
+  email,
   role: z.enum(['OWNER', 'ADMIN', 'DEVELOPER', 'READONLY']),
 });
 
@@ -98,7 +106,7 @@ export const CreateReplicationLinkDto = z.object({
 });
 
 export const CreateWebhookDto = z.object({
-  url: z.string().url(),
+  url: url2048,
   events: z.array(
     z.enum([
       'instance.created',
@@ -127,13 +135,13 @@ export const UpdateWebhookDto = CreateWebhookDto.partial().refine(
 export const BillingCheckoutDto = z.object({
   workspaceId: z.string().uuid(),
   plan: z.enum(['STARTER', 'BASIC', 'PRO', 'ENTERPRISE']),
-  successUrl: z.string().url(),
-  cancelUrl: z.string().url(),
+  successUrl: url2048,
+  cancelUrl: url2048,
 });
 
 export const BillingPortalDto = z.object({
   workspaceId: z.string().uuid(),
-  returnUrl: z.string().url(),
+  returnUrl: url2048,
 });
 
 export const CancelSubscriptionDto = z.object({
@@ -149,40 +157,49 @@ export const CreateVectorCollectionDto = z.object({
 export const AuditQueryDto = z.object({
   actorId: z.string().uuid().optional(),
   actorType: z.enum(['USER', 'API_KEY', 'SYSTEM']).optional(),
-  action: z.string().min(1).optional(),
-  resourceType: z.string().min(1).optional(),
-  resourceId: z.string().optional(),
+  action: safeString(256).optional(),
+  resourceType: safeString(256).optional(),
+  resourceId: z.string().max(256).optional(),
   since: z.coerce.date().optional(),
   until: z.coerce.date().optional(),
   limit: z.coerce.number().int().min(1).max(500).default(100),
-  cursor: z.string().optional(),
+  cursor: z.string().max(512).optional(),
 });
+
+// SCIM patch value restricted to primitive types and flat record — z.any() is too broad
+const scimPatchValue = z.union([
+  z.string().max(1024),
+  z.boolean(),
+  z.number(),
+  z.null(),
+  z.record(z.union([z.string().max(1024), z.boolean(), z.number(), z.null()])),
+]).optional();
 
 export const ScimPatchOpDto = z.object({
   op: z.enum(['add', 'replace', 'remove']),
-  path: z.string().optional(),
-  value: z.any().optional(),
+  path: z.string().max(256).optional(),
+  value: scimPatchValue,
 });
 
 export const ScimUserDto = z.object({
-  id: z.string().optional(),
-  externalId: z.string().optional(),
-  userName: z.string().email(),
+  id: z.string().max(256).optional(),
+  externalId: z.string().max(256).optional(),
+  userName: email,
   active: z.boolean().default(true),
   name: z
     .object({
-      givenName: z.string().optional(),
-      familyName: z.string().optional(),
-      formatted: z.string().optional(),
+      givenName: z.string().max(256).optional(),
+      familyName: z.string().max(256).optional(),
+      formatted: z.string().max(512).optional(),
     })
     .optional(),
   emails: z.array(
     z.object({
-      value: z.string().email(),
+      value: email,
       primary: z.boolean().optional(),
     }),
   ),
-  groups: z.array(z.object({ value: z.string() })).optional(),
+  groups: z.array(z.object({ value: z.string().max(256) })).optional(),
 });
 
 export const BackupRestoreDto = z.object({
@@ -190,12 +207,15 @@ export const BackupRestoreDto = z.object({
 });
 
 export const CreateSamlConfigDto = z.object({
-  entryPoint: z.string().url(),
-  issuer: z.string().min(1),
-  cert: z.string().startsWith('-----BEGIN CERTIFICATE-----'),
+  entryPoint: url2048,
+  issuer: z.string().min(1).max(256),
+  cert: z
+    .string()
+    .startsWith('-----BEGIN CERTIFICATE-----')
+    .endsWith('-----END CERTIFICATE-----'),
   attributeMapping: z.object({
-    email: z.string(),
-    name: z.string().optional(),
+    email: z.string().max(256),
+    name: z.string().max(256).optional(),
   }),
 });
 
