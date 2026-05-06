@@ -1,0 +1,2416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ClawDB — Zero-config database for AI agents</title>
+<meta name="description" content="Give any agent a production-ready database in seconds. One command. Works with Claude, OpenAI, LangChain, Vercel AI, MCP, and everything else."/>
+<!-- SVG Favicon — ClawDB claw logo -->
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230f0e0c'/%3E%3Cg fill='none' stroke='%236c8fff' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath stroke-width='3.5' d='M20 46 C18 38 22 30 26 24 C28 20 28 16 24 14'/%3E%3Cpath stroke-width='3.5' d='M30 46 C29 37 33 28 36 22 C38 17 36 13 32 12'/%3E%3Cpath stroke-width='3.5' d='M40 46 C40 37 44 29 46 23 C48 17 45 13 41 13'/%3E%3Cellipse cx='32' cy='50' rx='14' ry='4' stroke-width='2.5' stroke='%236c8fff' opacity='0.5'/%3E%3C/g%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Departure+Mono&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink:     #0f0e0c;
+  --paper:   #f5f0e8;
+  --warm-1:  #ede8de;
+  --warm-2:  #e0d9cc;
+  --warm-3:  #cec6b5;
+  --accent:  #6c8fff;
+  --accent-2:#4e73f5;
+  --accent-3:#3558d6;
+  --amber:   #d4860a;
+  --green:   #1a7a4a;
+  --muted:   #7a7265;
+  --subtle:  #b8b0a0;
+  --mono:    'Departure Mono', 'Courier New', monospace;
+  --serif:   'Instrument Serif', Georgia, serif;
+  --sans:    'DM Sans', system-ui, sans-serif;
+  --r:       2px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 16px; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* Paper texture overlay */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+}
+
+/* ─── TYPOGRAPHY ─────────────────────────────── */
+.serif { font-family: var(--serif); }
+.mono  { font-family: var(--mono);  }
+.sans  { font-family: var(--sans);  }
+
+/* ─── ANIMATIONS ─────────────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes blink { 50% { opacity: 0; } }
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50%       { transform: scale(1.4); opacity: 0.6; }
+}
+
+.fade-up { opacity: 0; animation: fadeUp 0.7s ease forwards; }
+.d1 { animation-delay: 0.1s; }
+.d2 { animation-delay: 0.2s; }
+.d3 { animation-delay: 0.35s; }
+.d4 { animation-delay: 0.5s; }
+.d5 { animation-delay: 0.65s; }
+.d6 { animation-delay: 0.8s; }
+
+/* ─── LAYOUT ─────────────────────────────────── */
+.container { max-width: 1360px; margin: 0 auto; padding: 0 32px; }
+.grid-12 { display: grid; grid-template-columns: repeat(12, 1fr); gap: 24px; }
+
+/* ─── TICKER TAPE ────────────────────────────── */
+.ticker {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 10px 0;
+  overflow: hidden;
+  position: relative;
+  border-bottom: 2px solid var(--accent);
+}
+.ticker-inner {
+  display: flex;
+  white-space: nowrap;
+  animation: ticker 28s linear infinite;
+  width: max-content;
+}
+.ticker-item {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+.ticker-item::after {
+  content: '◆';
+  color: var(--accent);
+  font-size: 8px;
+}
+
+/* ─── NAVBAR ─────────────────────────────────── */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--paper);
+  border-bottom: 1px solid var(--warm-3);
+}
+.nav-inner {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 0 32px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  text-decoration: none;
+  color: inherit;
+}
+.logo-text {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+.nav-links {
+  display: flex;
+  gap: 28px;
+  list-style: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.nav-links a { text-decoration: none; color: inherit; transition: color 0.15s; }
+.nav-links a:hover { color: var(--ink); }
+.nav-cta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+  letter-spacing: 0.02em;
+  border-radius: var(--r);
+}
+.btn-ghost {
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid var(--warm-3);
+}
+.btn-ghost:hover { background: var(--warm-1); color: var(--ink); }
+.btn-accent {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-accent:hover { background: var(--accent-2); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(108,143,255,0.35); }
+.btn-ink {
+  background: var(--ink);
+  color: var(--paper);
+}
+.btn-ink:hover { background: #1f1e1b; transform: translateY(-1px); }
+
+/* ─── HERO ───────────────────────────────────── */
+.hero {
+  padding: 80px 0 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Ruled paper lines in hero bg */
+.hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent, transparent 39px,
+    var(--warm-2) 39px, var(--warm-2) 40px
+  );
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 28px;
+}
+.badge-yc {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  padding: 3px 8px;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  border-radius: 2px;
+}
+.badge-live {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--green);
+}
+.live-dot {
+  width: 6px; height: 6px;
+  background: var(--green);
+  border-radius: 50%;
+  animation: pulse-dot 2s ease infinite;
+}
+
+.hero-headline {
+  font-family: var(--serif);
+  font-size: clamp(54px, 9vw, 128px);
+  line-height: 0.92;
+  letter-spacing: -0.03em;
+  font-weight: 400;
+  max-width: 16ch;
+  margin-bottom: 36px;
+}
+.hero-headline em {
+  font-style: italic;
+  color: var(--accent);
+}
+.hero-headline .crossed {
+  position: relative;
+  color: var(--subtle);
+  display: inline-block;
+}
+.hero-headline .crossed::after {
+  content: '';
+  position: absolute;
+  left: -2%; right: -2%;
+  top: 53%;
+  height: 4px;
+  background: var(--accent);
+  transform: rotate(-2deg);
+  border-radius: 2px;
+}
+
+.hero-body-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  position: relative;
+  z-index: 2;
+}
+.hero-left {
+  padding-right: 60px;
+  border-right: 1px solid var(--warm-3);
+  padding-bottom: 64px;
+}
+.hero-right {
+  padding-left: 48px;
+  padding-bottom: 64px;
+}
+.hero-subtext {
+  font-size: 18px;
+  color: var(--muted);
+  max-width: 46ch;
+  line-height: 1.65;
+  margin-bottom: 40px;
+  font-weight: 300;
+}
+.hero-subtext strong { color: var(--ink); font-weight: 500; }
+
+.cta-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.cta-primary-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cta-secondary {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.cta-secondary a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+.cta-secondary a:hover { color: var(--ink); }
+
+/* Hero install snippet */
+.install-block {
+  background: var(--ink);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 28px;
+}
+.install-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.install-tabs::-webkit-scrollbar { display: none; }
+.install-tab {
+  padding: 8px 16px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: rgba(255,255,255,0.35);
+  cursor: pointer;
+  transition: all 0.15s;
+  border: none;
+  background: transparent;
+  border-bottom: 2px solid transparent;
+}
+.install-tab.active {
+  color: var(--paper);
+  border-bottom-color: var(--accent);
+}
+.install-tab:hover { color: rgba(255,255,255,0.7); }
+.install-pane {
+  display: none;
+  padding: 20px 24px;
+}
+.install-pane.active { display: block; }
+.install-pane pre {
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.8;
+  color: #e8e6df;
+}
+.tk { color: #ff9a6c; } /* keyword */
+.tf { color: #8fdb90; } /* function */
+.ts { color: #ffd080; } /* string */
+.tc { color: #7a8a7a; font-style: italic; } /* comment */
+.to { color: #a8d8a8; } /* output */
+
+/* Stats row */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--warm-3);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--warm-1);
+}
+.stat-cell {
+  padding: 20px 16px;
+  border-right: 1px solid var(--warm-3);
+  text-align: center;
+}
+.stat-cell:last-child { border-right: none; }
+.stat-val {
+  font-family: var(--serif);
+  font-size: 28px;
+  font-style: italic;
+  color: var(--accent);
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.stat-lbl {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* ─── SECTION CHROME ─────────────────────────── */
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--warm-3);
+  margin: 0;
+}
+.section-header {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 48px;
+}
+.section-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--subtle);
+  letter-spacing: 0.12em;
+  flex-shrink: 0;
+}
+.section-title {
+  font-family: var(--serif);
+  font-size: clamp(32px, 4.5vw, 52px);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+}
+.section-title em { font-style: italic; color: var(--accent); }
+.section-intro {
+  font-size: 16px;
+  color: var(--muted);
+  max-width: 58ch;
+  font-weight: 300;
+}
+
+/* ─── PROBLEM SECTION ────────────────────────── */
+.problem { padding: 100px 0; background: var(--warm-1); }
+
+.problem-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  border: 1px solid var(--warm-3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.problem-col { padding: 40px; }
+.problem-col:first-child {
+  border-right: 1px solid var(--warm-3);
+  background: #f9f4ec;
+}
+.problem-col:last-child { background: var(--ink); }
+
+.problem-col-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 28px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.problem-col:first-child .problem-col-label { color: var(--muted); }
+.problem-col:last-child  .problem-col-label { color: rgba(255,255,255,0.4); }
+
+.stack-list { list-style: none; }
+.stack-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--warm-2);
+  font-size: 14px;
+}
+.stack-item:last-child { border-bottom: none; }
+.stack-item .icon {
+  font-size: 11px;
+  font-family: var(--mono);
+  flex-shrink: 0;
+  padding-top: 2px;
+  font-weight: 700;
+}
+.stack-item strong { display: block; margin-bottom: 1px; }
+.stack-item span { font-size: 12px; color: var(--muted); }
+
+/* Right side (dark) */
+.clawdb-list { list-style: none; }
+.clawdb-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  font-size: 14px;
+}
+.clawdb-item:last-child { border-bottom: none; }
+.clawdb-item .ck { color: var(--accent); font-family: var(--mono); font-size: 11px; flex-shrink: 0; padding-top: 2px; font-weight: 700; }
+.clawdb-item strong { display: block; color: #e8e6df; margin-bottom: 1px; }
+.clawdb-item span { font-size: 12px; color: rgba(255,255,255,0.4); }
+
+/* ─── HOW IT WORKS ───────────────────────────── */
+.how { padding: 100px 0; }
+.how-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border: 1px solid var(--warm-3);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 56px;
+}
+.step {
+  padding: 40px 36px;
+  border-right: 1px solid var(--warm-3);
+  position: relative;
+  background: var(--warm-1);
+  transition: background 0.2s;
+}
+.step:hover { background: var(--warm-2); }
+.step:last-child { border-right: none; }
+.step-num {
+  font-family: var(--serif);
+  font-size: 72px;
+  font-style: italic;
+  color: var(--warm-3);
+  line-height: 1;
+  margin-bottom: 20px;
+  display: block;
+}
+.step h3 {
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+}
+.step h3 em { font-style: italic; color: var(--accent); }
+.step p { font-size: 14px; color: var(--muted); line-height: 1.6; margin-bottom: 20px; }
+.step-mono {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink);
+  background: var(--paper);
+  padding: 8px 12px;
+  border-radius: 2px;
+  border-left: 3px solid var(--accent);
+}
+
+/* ─── CODE COMPARISON ─────────────────────────── */
+.compare { padding: 100px 0; background: var(--warm-1); }
+.compare-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  margin-top: 56px;
+}
+.compare-panel { border-radius: 4px; overflow: hidden; }
+.compare-panel-header {
+  padding: 12px 20px;
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.compare-panel.before .compare-panel-header {
+  background: #f0ece2;
+  color: var(--muted);
+  border: 1px solid var(--warm-3);
+  border-bottom: none;
+}
+.compare-panel.after .compare-panel-header {
+  background: #1a1916;
+  color: rgba(255,255,255,0.5);
+  border: 1px solid #2a2927;
+  border-bottom: none;
+}
+.compare-panel.before pre {
+  background: #f9f5ee;
+  border: 1px solid var(--warm-3);
+  padding: 24px 20px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: var(--muted);
+  overflow-x: auto;
+}
+.compare-panel.after pre {
+  background: #111009;
+  border: 1px solid #2a2927;
+  padding: 24px 20px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.75;
+  color: #c8c4bc;
+  overflow-x: auto;
+}
+.line-through { text-decoration: line-through; opacity: 0.5; }
+
+/* ─── INTEGRATIONS ───────────────────────────── */
+.integrations { padding: 100px 0; }
+
+.integration-headline {
+  font-family: var(--serif);
+  font-size: clamp(28px, 3.5vw, 44px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  text-align: center;
+  margin-bottom: 16px;
+  line-height: 1.15;
+}
+.integration-headline em { font-style: italic; color: var(--accent); }
+.integration-sub {
+  text-align: center;
+  color: var(--muted);
+  font-size: 15px;
+  margin-bottom: 56px;
+  font-weight: 300;
+}
+
+.logos-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 56px;
+}
+.logo-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 18px;
+  border: 1px solid var(--warm-3);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--warm-1);
+  transition: all 0.15s;
+}
+.logo-chip:hover {
+  border-color: var(--accent);
+  background: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.07);
+}
+.logo-chip .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.logo-chip .dot.green { background: var(--green); }
+.logo-chip .dot.amber { background: var(--amber); }
+
+/* Integration code tabs */
+.integration-tabs-wrapper {
+  border: 1px solid var(--warm-3);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--ink);
+  max-width: 860px;
+  margin: 0 auto;
+}
+.integration-tab-row {
+  display: flex;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  overflow-x: auto;
+}
+.itab {
+  flex-shrink: 0;
+  padding: 10px 18px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(255,255,255,0.3);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+  letter-spacing: 0.06em;
+}
+.itab.active { color: var(--paper); border-bottom-color: var(--accent); }
+.itab:hover { color: rgba(255,255,255,0.65); }
+.itab-pane { display: none; padding: 24px 28px; }
+.itab-pane.active { display: block; }
+.itab-pane pre { font-family: var(--mono); font-size: 13px; line-height: 1.8; color: #d8d4cc; }
+
+/* ─── ARCHITECTURE ───────────────────────────── */
+.architecture { padding: 100px 0; background: var(--warm-1); }
+
+.arch-modules {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border: 1px solid var(--warm-3);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 56px;
+}
+.arch-row-2 { margin-top: -1px; }
+
+.arch-module {
+  padding: 32px 24px;
+  border-right: 1px solid var(--warm-3);
+  border-bottom: 1px solid var(--warm-3);
+  background: var(--paper);
+  transition: background 0.2s;
+  position: relative;
+}
+.arch-module:hover { background: #fff; }
+.arch-module:nth-child(4n) { border-right: none; }
+.arch-module-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--subtle);
+  margin-bottom: 12px;
+}
+.arch-module h4 {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  margin-bottom: 8px;
+  line-height: 1.15;
+}
+.arch-module h4 em { color: var(--accent); font-style: italic; }
+.arch-module p {
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+.arch-module-features {
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--subtle);
+}
+.arch-module-features li {
+  padding: 3px 0;
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.arch-module-features li::before {
+  content: '─';
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* ─── COMPARISON TABLE ───────────────────────── */
+.comparison { padding: 100px 0; }
+.cmp-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 56px;
+  border: 1px solid var(--warm-3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.cmp-table th {
+  padding: 14px 20px;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--warm-1);
+  border-bottom: 1px solid var(--warm-3);
+  font-weight: 500;
+}
+.cmp-table th.hl { color: var(--ink); background: #f0ece4; }
+.cmp-table td {
+  padding: 13px 20px;
+  border-bottom: 1px solid var(--warm-2);
+  vertical-align: middle;
+}
+.cmp-table tr:last-child td { border-bottom: none; }
+.cmp-table tr:hover td { background: var(--warm-1); }
+.cmp-table td.feature { font-weight: 500; color: var(--ink); font-size: 14px; }
+.cmp-table td.feature span { display: block; font-size: 11px; font-weight: 400; color: var(--muted); font-family: var(--mono); }
+.cmp-yes { color: var(--green); font-family: var(--mono); font-size: 14px; font-weight: 700; }
+.cmp-no  { color: var(--subtle); font-size: 12px; }
+.cmp-partial { color: var(--amber); font-family: var(--mono); font-size: 12px; }
+.cmp-hl { background: rgba(108,143,255,0.06); }
+
+/* ─── ROADMAP ────────────────────────────────── */
+.roadmap { padding: 100px 0; background: var(--warm-1); }
+.roadmap-track {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border: 1px solid var(--warm-3);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 56px;
+  position: relative;
+}
+/* Progress line */
+.roadmap-track::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 37.5%; /* 1.5 / 4 phases done */
+  height: 4px;
+  background: var(--accent);
+  z-index: 2;
+}
+.phase {
+  padding: 32px 28px;
+  border-right: 1px solid var(--warm-3);
+  background: var(--paper);
+  position: relative;
+}
+.phase:last-child { border-right: none; }
+.phase-status {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.status-done   { color: var(--green); }
+.status-active { color: var(--accent); }
+.status-next   { color: var(--amber); }
+.status-future { color: var(--subtle); }
+.phase h4 {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  margin-bottom: 20px;
+}
+.phase ul { list-style: none; font-size: 13px; }
+.phase ul li {
+  padding: 5px 0;
+  color: var(--muted);
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--warm-2);
+}
+.phase ul li:last-child { border-bottom: none; }
+.phase ul li::before { content: '└'; font-family: var(--mono); color: var(--subtle); flex-shrink: 0; font-size: 12px; }
+.status-done ~ ul li::before { content: '✓'; color: var(--green); }
+
+/* ─── FINAL CTA ──────────────────────────────── */
+.final-cta {
+  padding: 140px 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  background: var(--ink);
+}
+/* Grid pattern */
+.final-cta::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+  pointer-events: none;
+}
+.final-cta::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 50%;
+  transform: translateX(-50%);
+  width: 800px; height: 400px;
+  background: radial-gradient(ellipse, rgba(108,143,255,0.15), transparent 70%);
+  pointer-events: none;
+}
+
+.cta-headline {
+  font-family: var(--serif);
+  font-size: clamp(44px, 6.5vw, 88px);
+  font-weight: 400;
+  color: var(--paper);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-bottom: 24px;
+  position: relative;
+  z-index: 2;
+}
+.cta-headline em { color: var(--accent); font-style: italic; }
+
+.cta-subtext {
+  color: rgba(245,240,232,0.5);
+  font-size: 17px;
+  font-weight: 300;
+  max-width: 48ch;
+  margin: 0 auto 48px;
+  position: relative;
+  z-index: 2;
+}
+
+.cta-buttons {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 48px;
+  position: relative;
+  z-index: 2;
+}
+.btn-cta-primary {
+  background: var(--accent);
+  color: #fff;
+  padding: 16px 32px;
+  font-size: 14px;
+  border-radius: 3px;
+}
+.btn-cta-primary:hover { background: var(--accent-2); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(108,143,255,0.45); }
+.btn-cta-ghost {
+  background: rgba(255,255,255,0.07);
+  color: rgba(245,240,232,0.8);
+  border: 1px solid rgba(255,255,255,0.15);
+  padding: 16px 32px;
+  font-size: 14px;
+  border-radius: 3px;
+}
+.btn-cta-ghost:hover { background: rgba(255,255,255,0.12); color: var(--paper); }
+
+.waitlist-form {
+  display: flex;
+  max-width: 460px;
+  margin: 0 auto;
+  position: relative;
+  z-index: 2;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.waitlist-input {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: none;
+  color: var(--paper);
+  font-family: var(--mono);
+  font-size: 13px;
+  padding: 14px 18px;
+  outline: none;
+}
+.waitlist-input::placeholder { color: rgba(255,255,255,0.25); }
+.waitlist-btn {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  padding: 0 24px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.waitlist-btn:hover { background: var(--accent-2); }
+
+/* ─── FOOTER ─────────────────────────────────── */
+footer {
+  background: var(--ink);
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 60px 0 32px;
+  color: rgba(255,255,255,0.35);
+  font-size: 13px;
+}
+.footer-grid {
+  display: grid;
+  grid-template-columns: 2.5fr 1fr 1fr 1fr;
+  gap: 48px;
+  margin-bottom: 56px;
+}
+.footer-brand {
+  font-family: var(--serif);
+  font-size: 32px;
+  font-style: italic;
+  color: var(--paper);
+  margin-bottom: 12px;
+  letter-spacing: -0.02em;
+}
+.footer-brand-sub {
+  font-size: 13px;
+  color: rgba(255,255,255,0.3);
+  font-weight: 300;
+  max-width: 32ch;
+  line-height: 1.5;
+}
+.footer-col h6 {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 16px;
+}
+.footer-col a {
+  display: block;
+  color: rgba(255,255,255,0.3);
+  text-decoration: none;
+  padding: 4px 0;
+  transition: color 0.15s;
+  font-size: 13px;
+}
+.footer-col a:hover { color: rgba(255,255,255,0.7); }
+.footer-bottom {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: gap;
+}
+.footer-badges {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.footer-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 3px 9px;
+  border-radius: 2px;
+  color: rgba(255,255,255,0.3);
+}
+
+/* ─── PRICING ────────────────────────────────── */
+.pricing { padding: 100px 0; }
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border: 1px solid var(--warm-3);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 56px;
+}
+.pricing-plan {
+  padding: 36px 28px;
+  border-right: 1px solid var(--warm-3);
+  background: var(--paper);
+  position: relative;
+  transition: background 0.2s;
+}
+.pricing-plan:last-child { border-right: none; }
+.pricing-plan:hover { background: var(--warm-1); }
+.pricing-plan.featured {
+  background: var(--ink);
+  color: var(--paper);
+  border-right-color: rgba(255,255,255,0.08);
+}
+.pricing-plan.featured:hover { background: #1a1916; }
+.pricing-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--subtle);
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pricing-plan.featured .pricing-tag { color: rgba(255,255,255,0.3); }
+.popular-badge {
+  background: var(--accent);
+  color: #fff;
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.plan-name {
+  font-family: var(--serif);
+  font-size: 26px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  margin-bottom: 6px;
+}
+.pricing-plan.featured .plan-name { color: var(--paper); }
+.plan-price {
+  margin-bottom: 20px;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.price-amount {
+  font-family: var(--serif);
+  font-size: 44px;
+  font-style: italic;
+  color: var(--accent);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.price-period {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.06em;
+}
+.pricing-plan.featured .price-period { color: rgba(255,255,255,0.35); }
+.plan-desc {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 24px;
+  line-height: 1.5;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--warm-2);
+}
+.pricing-plan.featured .plan-desc {
+  color: rgba(255,255,255,0.4);
+  border-bottom-color: rgba(255,255,255,0.08);
+}
+.plan-features { list-style: none; margin-bottom: 28px; }
+.plan-features li {
+  padding: 7px 0;
+  font-size: 13px;
+  color: var(--muted);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-bottom: 1px solid var(--warm-2);
+}
+.plan-features li:last-child { border-bottom: none; }
+.pricing-plan.featured .plan-features li {
+  color: rgba(255,255,255,0.55);
+  border-bottom-color: rgba(255,255,255,0.06);
+}
+.feat-check { color: var(--accent); font-family: var(--mono); font-size: 12px; flex-shrink: 0; font-weight: 700; }
+.feat-dash  { color: var(--subtle); font-family: var(--mono); font-size: 12px; flex-shrink: 0; }
+.plan-cta {
+  display: block;
+  width: 100%;
+  padding: 11px 0;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  border-radius: 3px;
+  transition: all 0.15s;
+  cursor: pointer;
+  border: none;
+}
+.plan-cta-outline {
+  border: 1px solid var(--warm-3);
+  color: var(--ink);
+  background: transparent;
+}
+.plan-cta-outline:hover { background: var(--warm-2); border-color: var(--warm-3); }
+.plan-cta-accent {
+  background: var(--accent);
+  color: #fff;
+}
+.plan-cta-accent:hover { background: var(--accent-2); transform: translateY(-1px); box-shadow: 0 4px 14px rgba(108,143,255,0.35); }
+.plan-cta-ghost-light {
+  border: 1px solid rgba(255,255,255,0.15);
+  color: rgba(255,255,255,0.7);
+  background: transparent;
+}
+.plan-cta-ghost-light:hover { background: rgba(255,255,255,0.07); color: #fff; }
+.pricing-footnote {
+  text-align: center;
+  margin-top: 32px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--subtle);
+}
+.pricing-footnote a { color: var(--muted); text-decoration: underline; text-underline-offset: 3px; }
+
+/* ─── RESPONSIVE ─────────────────────────────── */
+@media (max-width: 1024px) {
+  .container { padding: 0 24px; }
+  .hero-body-row { grid-template-columns: 1fr; }
+  .hero-left { border-right: none; border-bottom: 1px solid var(--warm-3); padding-right: 0; padding-bottom: 48px; }
+  .hero-right { padding-left: 0; }
+  .problem-grid { grid-template-columns: 1fr; }
+  .problem-col:first-child { border-right: none; border-bottom: 1px solid var(--warm-3); }
+  .how-steps { grid-template-columns: 1fr; }
+  .step { border-right: none; }
+  .compare-grid { grid-template-columns: 1fr; }
+  .arch-modules { grid-template-columns: repeat(2, 1fr); }
+  .arch-module:nth-child(2n) { border-right: none; }
+  .arch-module:nth-child(4n) { border-right: 1px solid var(--warm-3); }
+  .roadmap-track { grid-template-columns: 1fr 1fr; }
+  .phase:nth-child(2n) { border-right: none; }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .stats-row .stat-cell:nth-child(2) { border-right: none; }
+  .pricing-grid { grid-template-columns: 1fr 1fr; }
+  .pricing-plan:nth-child(2n) { border-right: none; }
+  .pricing-plan:nth-child(1), .pricing-plan:nth-child(2) { border-bottom: 1px solid var(--warm-3); }
+}
+@media (max-width: 640px) {
+  .nav-links { display: none; }
+  .hero-headline { font-size: clamp(40px, 11vw, 80px); }
+  .arch-modules { grid-template-columns: 1fr; }
+  .arch-module { border-right: none; }
+  .roadmap-track { grid-template-columns: 1fr; }
+  .phase { border-right: none; }
+  .footer-grid { grid-template-columns: 1fr; }
+  .cmp-table { font-size: 12px; }
+  .cmp-table th, .cmp-table td { padding: 10px 14px; }
+  .pricing-grid { grid-template-columns: 1fr; }
+  .pricing-plan { border-right: none; border-bottom: 1px solid var(--warm-3); }
+  .pricing-plan:last-child { border-bottom: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ─── TICKER ──────────────────────────────── -->
+<div class="ticker" aria-hidden="true">
+  <div class="ticker-inner">
+    <span class="ticker-item">Zero-config agent database</span>
+    <span class="ticker-item">Works with Claude · OpenAI · LangChain · Vercel AI</span>
+    <span class="ticker-item">npx clawdb@latest init</span>
+    <span class="ticker-item">Apache 2.0 · Open Source</span>
+    <span class="ticker-item">YC S26</span>
+    <span class="ticker-item">Local-first · Cloud-ready</span>
+    <span class="ticker-item">Semantic search built in</span>
+    <span class="ticker-item">Zero-config agent database</span>
+    <span class="ticker-item">Works with Claude · OpenAI · LangChain · Vercel AI</span>
+    <span class="ticker-item">npx clawdb@latest init</span>
+    <span class="ticker-item">Apache 2.0 · Open Source</span>
+    <span class="ticker-item">YC S26</span>
+    <span class="ticker-item">Local-first · Cloud-ready</span>
+    <span class="ticker-item">Semantic search built in</span>
+  </div>
+</div>
+
+<!-- ─── NAV ─────────────────────────────────── -->
+<nav>
+  <div class="nav-inner">
+    <a class="logo" href="/">
+      <svg width="32" height="32" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-right:10px;flex-shrink:0;">
+        <rect width="64" height="64" rx="12" fill="#0f0e0c"/>
+        <g stroke="#6c8fff" stroke-linecap="round" stroke-linejoin="round" fill="none">
+          <path stroke-width="3.5" d="M20 47 C18 38 22 30 26 24 C28 20 28 15 24 13"/>
+          <path stroke-width="3.5" d="M31 47 C30 37 34 28 37 22 C39 17 37 12 33 11"/>
+          <path stroke-width="3.5" d="M41 47 C41 37 45 29 47 23 C49 17 46 12 42 12"/>
+          <ellipse cx="32" cy="51" rx="14" ry="3.5" stroke-width="2" opacity="0.45"/>
+        </g>
+      </svg>
+      <span class="logo-text">ClawDB</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#how">Setup</a></li>
+      <li><a href="#integrations">Integrations</a></li>
+      <li><a href="#architecture">Architecture</a></li>
+      <li><a href="#compare">vs. The Stack</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#">Docs</a></li>
+    </ul>
+    <div class="nav-cta">
+      <a href="https://github.com/Claw-DB/ClawDB" class="btn btn-ghost">★ GitHub</a>
+      <a href="/signup" data-launch-dashboard="true" class="btn btn-accent">Dashboard →</a>
+    </div>
+  </div>
+</nav>
+
+<!-- ─── HERO ─────────────────────────────────── -->
+<section class="hero">
+  <div class="container">
+
+    <div class="hero-eyebrow fade-up d1">
+      <span class="badge-yc">YC S26</span>
+      <span style="color:var(--warm-3)">·</span>
+      <span class="badge-live"><span class="live-dot"></span> alpha · v0.1</span>
+      <span style="color:var(--warm-3)">·</span>
+      <span>Software for Agents</span>
+    </div>
+
+    <h1 class="hero-headline fade-up d2">
+      Your agent<br>
+      needs a<br>
+      <em>database.</em><br>
+      Here's one.
+    </h1>
+
+    <div class="hero-body-row">
+      <div class="hero-left fade-up d3">
+        <p class="hero-subtext">
+          Stop picking databases. Stop wiring embeddings. Stop managing schema.
+          <strong>One command</strong> and your agent has storage, semantic search,
+          branching, sync, and auto-summarization — all production-grade, all local-first.
+        </p>
+
+        <div class="cta-cluster">
+          <div class="cta-primary-row">
+            <a href="/signup" data-launch-dashboard="true" class="btn btn-accent" style="font-size:14px;padding:12px 24px;">
+            Dashboard →
+            </a>
+            <a href="https://github.com/Claw-DB/ClawDB" class="btn btn-ink" style="font-size:14px;padding:12px 24px;">
+              View on GitHub
+            </a>
+          </div>
+          <div class="cta-secondary">
+            <span>cargo add clawdb</span>
+            <span>·</span>
+            <span>pip install clawdb</span>
+            <span>·</span>
+            <a href="/docs">Docs</a>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-right fade-up d4">
+        <!-- Install tabs -->
+        <div class="install-block" style="margin-bottom:28px;">
+          <div class="install-tabs">
+            <button class="install-tab active" onclick="switchTab(this,'t-ts')">TypeScript</button>
+            <button class="install-tab" onclick="switchTab(this,'t-py')">Python</button>
+            <button class="install-tab" onclick="switchTab(this,'t-rs')">Rust</button>
+            <button class="install-tab" onclick="switchTab(this,'t-mcp')">Claude / MCP</button>
+            <button class="install-tab" onclick="switchTab(this,'t-lc')">LangChain</button>
+            <button class="install-tab" onclick="switchTab(this,'t-oc')">OpenClaw</button>
+            <button class="install-tab" onclick="switchTab(this,'t-oai')">OpenAI</button>
+            <button class="install-tab" onclick="switchTab(this,'t-go')">Go</button>
+          </div>
+
+          <div class="install-pane active" id="t-ts">
+<pre><span class="tc">// zero config — auto-provisions on first run</span>
+<span class="tk">import</span> clawdb <span class="tk">from</span> <span class="ts">'@clawdb/sdk'</span>
+
+<span class="tk">const</span> db = <span class="tk">await</span> <span class="tf">clawdb</span>()
+
+<span class="tk">await</span> db.memory.<span class="tf">remember</span>(<span class="ts">'user prefers dark mode'</span>)
+<span class="tk">const</span> hits = <span class="tk">await</span> db.memory.<span class="tf">search</span>(<span class="ts">'user preferences'</span>)
+<span class="to">// ✓ 1 result  ·  score: 0.97  ·  3ms</span></pre>
+          </div>
+
+          <div class="install-pane" id="t-py">
+<pre><span class="tc"># zero config — auto-provisions on first run</span>
+<span class="tk">from</span> clawdb <span class="tk">import</span> clawdb
+
+db = <span class="tk">await</span> <span class="tf">clawdb</span>()
+
+<span class="tk">await</span> db.memory.<span class="tf">remember</span>(<span class="ts">"user prefers dark mode"</span>)
+hits = <span class="tk">await</span> db.memory.<span class="tf">search</span>(<span class="ts">"user preferences"</span>)
+<span class="tc"># ✓ 1 result  ·  score: 0.97  ·  4ms</span></pre>
+          </div>
+
+          <div class="install-pane" id="t-rs">
+<pre><span class="tk">use</span> clawdb::prelude::*;
+
+<span class="tk">let</span> db = ClawDB::<span class="tf">open_default</span>().<span class="tk">await</span>?;
+<span class="tk">let</span> sx = db.<span class="tf">session</span>(agent_id, <span class="ts">"assistant"</span>, scopes).<span class="tk">await</span>?;
+
+db.<span class="tf">remember</span>(&amp;sx, <span class="ts">"user prefers dark mode"</span>).<span class="tk">await</span>?;
+<span class="tk">let</span> hits = db.<span class="tf">search</span>(&amp;sx, <span class="ts">"user preferences"</span>).<span class="tk">await</span>?;
+<span class="to">// ✓ 1 result  ·  score: 0.97  ·  &lt;1ms cached</span></pre>
+          </div>
+
+          <div class="install-pane" id="t-mcp">
+<pre><span class="tc">// Add ClawDB to Claude Desktop in one command:</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-claude</span>
+<span class="to">// ✓ Restart Claude Desktop — memory is live</span>
+
+<span class="tc">// Or for Cursor / VS Code / Continue / Zed:</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-cursor</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-vscode</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-continue</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-zed</span>
+
+<span class="tc">// Tools exposed to every AI editor:</span>
+<span class="tc">// clawdb_remember · clawdb_search · clawdb_recall</span>
+<span class="tc">// clawdb_branch_fork · clawdb_branch_merge</span></pre>
+          </div>
+
+          <div class="install-pane" id="t-lc">
+<pre><span class="tk">import</span> { ClawDBRetriever, ClawDBChatMessageHistory,
+         createClawDBTools } <span class="tk">from</span> <span class="ts">'@clawdb/langchain'</span>
+
+<span class="tk">const</span> retriever = <span class="tk">new</span> <span class="tf">ClawDBRetriever</span>({ client: db, topK: 10 })
+<span class="tk">const</span> history  = <span class="tk">new</span> <span class="tf">ClawDBChatMessageHistory</span>({ client: db, sessionId })
+<span class="tk">const</span> tools    = <span class="tf">createClawDBTools</span>(db)
+
+<span class="tc">// Drop into any LangChain chain / agent:</span>
+<span class="tk">const</span> chain = RunnableSequence.<span class="tf">from</span>([retriever, llm])
+<span class="to">// ✓ Persistent memory across all sessions</span></pre>
+          </div>
+
+          <div class="install-pane" id="t-oc">
+<pre><span class="tk">import</span> { ClawDBPlugin } <span class="tk">from</span> <span class="ts">'@clawdb/openclaw'</span>
+
+<span class="tc">// One line — agent gets a full database</span>
+<span class="tk">const</span> agent = <span class="tk">new</span> <span class="tf">OpenClawAgent</span>({
+  plugins: [<span class="tf">ClawDBPlugin</span>()]
+})
+
+<span class="tc">// Auto-injects memory context before each turn.</span>
+<span class="tc">// Auto-stores user + agent messages after each turn.</span>
+<span class="tc">// Syncs and closes cleanly on shutdown.</span>
+<span class="to">// ✓ Zero additional code required</span></pre>
+          </div>
+
+          <div class="install-pane" id="t-oai">
+<pre><span class="tk">import</span> { createClawDBAgentTools,
+         withClawDBMemory } <span class="tk">from</span> <span class="ts">'@clawdb/openai-agents'</span>
+
+<span class="tc">// Add explicit tools to any OpenAI agent</span>
+<span class="tk">const</span> tools = <span class="tf">createClawDBAgentTools</span>(db, {
+  enableBranching: <span class="tk">true</span>
+})
+
+<span class="tc">// Or wrap the agent for automatic memory</span>
+<span class="tk">const</span> agent = <span class="tf">withClawDBMemory</span>(myAgent, db)
+<span class="to">// ✓ Memory in/out on every run, zero boilerplate</span></pre>
+          </div>
+
+          <div class="install-pane" id="t-go">
+<pre><span class="tk">import</span> clawdb <span class="ts">"github.com/Claw-DB/claw-sdk/sdks/go"</span>
+
+db, _ := clawdb.<span class="tf">New</span>(clawdb.Options{
+  AgentID: <span class="ts">"my-agent"</span>,
+  <span class="tc">// Endpoint auto-detected from env</span>
+})
+<span class="tk">defer</span> db.<span class="tf">Close</span>()
+
+id, _ := db.Memory.<span class="tf">Remember</span>(ctx, <span class="ts">"user prefers dark mode"</span>, <span class="tk">nil</span>)
+hits, _ := db.Memory.<span class="tf">Search</span>(ctx, <span class="ts">"user preferences"</span>, <span class="tk">nil</span>)
+<span class="to">// ✓ 1 result  ·  score: 0.97</span></pre>
+          </div>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-cell">
+            <div class="stat-val">&lt;1ms</div>
+            <div class="stat-lbl">Cache reads</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-val">10k+</div>
+            <div class="stat-lbl">Writes/sec</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-val">11</div>
+            <div class="stat-lbl">Open crates</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-val">0</div>
+            <div class="stat-lbl">Config needed</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── PROBLEM ──────────────────────────────── -->
+<section class="problem" id="problem">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-num">01 ·</span>
+      <div>
+        <h2 class="section-title">The <em>fragmented</em> stack<br>nobody talks about</h2>
+      </div>
+    </div>
+
+    <div class="problem-grid">
+      <div class="problem-col">
+        <div class="problem-col-label" style="color:var(--muted)">
+          <span style="font-size:10px;color:var(--accent)">✕</span>
+          Today's agent stack — 7 tools
+        </div>
+        <ul class="stack-list">
+          <li class="stack-item">
+            <span class="icon" style="color:var(--subtle)">01</span>
+            <div><strong>SQLite / Postgres</strong><span>picked arbitrarily, schema managed manually</span></div>
+          </li>
+          <li class="stack-item">
+            <span class="icon" style="color:var(--subtle)">02</span>
+            <div><strong>Pinecone / pgvector</strong><span>separate service, separate billing, separate ops</span></div>
+          </li>
+          <li class="stack-item">
+            <span class="icon" style="color:var(--subtle)">03</span>
+            <div><strong>Embedding pipeline</strong><span>custom glue nobody owns</span></div>
+          </li>
+          <li class="stack-item">
+            <span class="icon" style="color:var(--subtle)">04</span>
+            <div><strong>Custom memory layer</strong><span>third refactor, still leaks context</span></div>
+          </li>
+          <li class="stack-item">
+            <span class="icon" style="color:var(--subtle)">05</span>
+            <div><strong>Auth / permissions</strong><span>ad-hoc, inconsistent, not agent-aware</span></div>
+          </li>
+          <li class="stack-item">
+            <span class="icon" style="color:var(--subtle)">06</span>
+            <div><strong>Summarization cron</strong><span>LLM + celery + whatever you hacked together</span></div>
+          </li>
+          <li class="stack-item">
+            <span class="icon" style="color:var(--subtle)">07</span>
+            <div><strong>Sync layer</strong><span>if you got that far</span></div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="problem-col">
+        <div class="problem-col-label">
+          <span style="font-size:10px;color:var(--accent)">✓</span>
+          ClawDB — one runtime
+        </div>
+        <ul class="clawdb-list">
+          <li class="clawdb-item">
+            <span class="ck">→</span>
+            <div><strong>Auto-provisioned storage</strong><span>SQLite locally, Postgres at scale, zero config either way</span></div>
+          </li>
+          <li class="clawdb-item">
+            <span class="ck">→</span>
+            <div><strong>Native semantic search</strong><span>HNSW + FTS5 hybrid, local embeddings, no external service</span></div>
+          </li>
+          <li class="clawdb-item">
+            <span class="ck">→</span>
+            <div><strong>Schema-free by default</strong><span>insert anything, search by meaning</span></div>
+          </li>
+          <li class="clawdb-item">
+            <span class="ck">→</span>
+            <div><strong>Intent-aware policy</strong><span>access control that knows what the agent is doing</span></div>
+          </li>
+          <li class="clawdb-item">
+            <span class="ck">→</span>
+            <div><strong>Auto-summarization</strong><span>memory gets sharper over time, not noisier</span></div>
+          </li>
+          <li class="clawdb-item">
+            <span class="ck">→</span>
+            <div><strong>Local-first sync</strong><span>encrypted, offline-capable, continues seamlessly across devices</span></div>
+          </li>
+          <li class="clawdb-item">
+            <span class="ck">→</span>
+            <div><strong>Branch & simulate</strong><span>test strategies safely, merge what worked</span></div>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── HOW IT WORKS ─────────────────────────── -->
+<section class="how" id="how">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-num">02 ·</span>
+      <div>
+        <h2 class="section-title">Up in <em>10 seconds,</em><br>production-grade.</h2>
+        <p class="section-intro" style="margin-top:12px;">
+          Three steps. The last one is optional. Most agents only need the first.
+        </p>
+      </div>
+    </div>
+
+    <div class="how-steps">
+      <div class="step">
+        <span class="step-num">1</span>
+        <h3>Run <em>init</em></h3>
+        <p>ClawDB detects your environment, picks the right backend, downloads the server binary if needed, and starts it — all in one command.</p>
+        <div class="step-mono">npx clawdb@latest init</div>
+        <div style="margin-top:12px;font-size:12px;color:var(--muted);font-family:var(--mono);">
+          ✓ SQLite selected · ✓ Server started · ✓ Embeddings ready
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">2</span>
+        <h3>One <em>import</em></h3>
+        <p>Import the SDK for your language. The auto-provision function reads env vars, connects to the running server, or starts one — whichever applies.</p>
+        <div class="step-mono">const db = await clawdb()</div>
+        <div style="margin-top:12px;font-size:12px;color:var(--muted);font-family:var(--mono);">
+          Works in Node, Python, Rust, Go, MCP
+        </div>
+      </div>
+      <div class="step">
+        <span class="step-num">3</span>
+        <h3>Connect to <em>cloud</em></h3>
+        <p>Get an API key from cloud.clawdb.dev and set CLAWDB_API_KEY. Your agent's memory syncs across devices and persists across deployments.</p>
+        <div class="step-mono">clawdb cloud login</div>
+        <div style="margin-top:12px;font-size:12px;color:var(--muted);font-family:var(--mono);">
+          Optional · free tier available
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── CODE COMPARISON ───────────────────────── -->
+<section class="compare" id="compare-code">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-num">03 ·</span>
+      <div>
+        <h2 class="section-title">Seven imports become <em>one.</em></h2>
+        <p class="section-intro" style="margin-top:12px;">The same agent memory loop. Before and after.</p>
+      </div>
+    </div>
+
+    <div class="compare-grid">
+      <div class="compare-panel before">
+        <div class="compare-panel-header">
+          <span style="color:var(--accent)">✕</span> Before — 7 packages, your glue code
+        </div>
+        <pre><span class="tc"># requirements.txt keeps growing</span>
+<span class="line-through">sqlalchemy psycopg2-binary</span>
+<span class="line-through">pinecone-client</span>
+<span class="line-through">sentence-transformers</span>
+<span class="line-through">redis celery</span>
+<span class="line-through">custom-auth-lib</span>
+<span class="line-through">your-memory-module</span>
+
+<span class="tc"># app.py — 200 lines of glue</span>
+embed = model.encode(text)
+pinecone.upsert(id, embed)
+db.execute("INSERT INTO memories...")
+redis.set(f"cache:{id}", ...)
+if not check_perms(user, resource):
+    raise PermissionDenied
+celery.send_task('summarize', ...)
+<span class="tc"># cross fingers and deploy</span></pre>
+      </div>
+
+      <div class="compare-panel after">
+        <div class="compare-panel-header">
+          <span style="color:var(--green)">✓</span> After — one import, six engines
+        </div>
+        <pre><span class="tc"># requirements.txt</span>
+<span class="tf">clawdb</span>
+
+<span class="tc"># app.py — done</span>
+<span class="tk">from</span> clawdb <span class="tk">import</span> clawdb
+
+db = <span class="tk">await</span> <span class="tf">clawdb</span>()
+
+<span class="tc"># store + embed + index + cache: one call</span>
+<span class="tk">await</span> db.memory.<span class="tf">remember</span>(content)
+
+<span class="tc"># guard runs implicitly, every op</span>
+hits = <span class="tk">await</span> db.memory.<span class="tf">search</span>(query)
+
+<span class="tc"># branch, simulate, merge</span>
+b = <span class="tk">await</span> db.branch.<span class="tf">fork</span>(<span class="ts">"trial"</span>)
+<span class="tk">await</span> db.branch.<span class="tf">merge</span>(b, trunk)
+
+<span class="tc"># auto-summarization in background</span>
+<span class="tk">await</span> db.<span class="tf">reflect</span>()
+<span class="to"># ✓ 6 engines · 1 process · 0 config</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── INTEGRATIONS ─────────────────────────── -->
+<section class="integrations" id="integrations">
+  <div class="container">
+    <h2 class="integration-headline">Works with <em>everything</em><br>you're already using.</h2>
+    <p class="integration-sub">Native adapters for every major AI framework and tool. One database, everywhere.</p>
+
+    <div class="logos-row">
+      <div class="logo-chip"><span class="dot"></span>Claude Desktop</div>
+      <div class="logo-chip"><span class="dot green"></span>Claude Code</div>
+      <div class="logo-chip"><span class="dot"></span>OpenAI Agents</div>
+      <div class="logo-chip"><span class="dot amber"></span>LangChain</div>
+      <div class="logo-chip"><span class="dot"></span>Vercel AI SDK</div>
+      <div class="logo-chip"><span class="dot green"></span>Anthropic SDK</div>
+      <div class="logo-chip"><span class="dot"></span>Google GenAI</div>
+      <div class="logo-chip"><span class="dot amber"></span>LlamaIndex</div>
+      <div class="logo-chip"><span class="dot"></span>GitHub Copilot</div>
+      <div class="logo-chip"><span class="dot green"></span>Cursor</div>
+      <div class="logo-chip"><span class="dot"></span>VS Code</div>
+      <div class="logo-chip"><span class="dot amber"></span>Continue.dev</div>
+      <div class="logo-chip"><span class="dot"></span>Zed</div>
+      <div class="logo-chip"><span class="dot green"></span>MCP (any host)</div>
+      <div class="logo-chip"><span class="dot"></span>CrewAI</div>
+      <div class="logo-chip"><span class="dot amber"></span>AutoGen</div>
+    </div>
+
+    <div class="integration-tabs-wrapper">
+      <div class="integration-tab-row">
+        <button class="itab active" onclick="switchITab(this,'i-lc')">LangChain</button>
+        <button class="itab" onclick="switchITab(this,'i-oai')">OpenAI Agents</button>
+        <button class="itab" onclick="switchITab(this,'i-vai')">Vercel AI</button>
+        <button class="itab" onclick="switchITab(this,'i-ant')">Anthropic</button>
+        <button class="itab" onclick="switchITab(this,'i-mcp')">MCP</button>
+        <button class="itab" onclick="switchITab(this,'i-oc')">OpenClaw</button>
+        <button class="itab" onclick="switchITab(this,'i-gg')">Google GenAI</button>
+        <button class="itab" onclick="switchITab(this,'i-cursor')">Cursor / Zed</button>
+        <button class="itab" onclick="switchITab(this,'i-go')">Go</button>
+        <button class="itab" onclick="switchITab(this,'i-rs2')">Rust</button>
+      </div>
+
+      <div class="itab-pane active" id="i-lc">
+<pre><span class="tk">import</span> { ClawDBRetriever, ClawDBChatMessageHistory,
+         createClawDBTools } <span class="tk">from</span> <span class="ts">'@clawdb/langchain'</span>
+
+<span class="tc">// Drop-in retriever for any RAG pipeline</span>
+<span class="tk">const</span> retriever = <span class="tk">new</span> <span class="tf">ClawDBRetriever</span>({ client: db, topK: 10 })
+
+<span class="tc">// Persistent chat history across sessions</span>
+<span class="tk">const</span> history = <span class="tk">new</span> <span class="tf">ClawDBChatMessageHistory</span>({ client: db, sessionId })
+
+<span class="tc">// Native tools the agent can call</span>
+<span class="tk">const</span> tools = <span class="tf">createClawDBTools</span>(db)
+<span class="tc">// remember_memory · search_memory · recall_memory</span></pre>
+      </div>
+
+      <div class="itab-pane" id="i-oai">
+<pre><span class="tk">import</span> { createClawDBAgentTools, withClawDBMemory }
+  <span class="tk">from</span> <span class="ts">'@clawdb/openai-agents'</span>
+
+<span class="tc">// Add tools to any OpenAI agent</span>
+<span class="tk">const</span> tools = <span class="tf">createClawDBAgentTools</span>(db, {
+  enableBranching: <span class="tk">true</span>
+})
+
+<span class="tc">// Or wrap the whole agent — auto memory in/out</span>
+<span class="tk">const</span> agent = <span class="tf">withClawDBMemory</span>(myAgent, db)
+<span class="tc">// Injects top memories before each run.
+// Stores user + assistant turns after.</span></pre>
+      </div>
+
+      <div class="itab-pane" id="i-vai">
+<pre><span class="tk">import</span> { clawdbTools, clawdbMiddleware } <span class="tk">from</span> <span class="ts">'@clawdb/vercel-ai'</span>
+
+<span class="tc">// Vercel AI tools — generateText / streamText</span>
+<span class="tk">const</span> result = <span class="tk">await</span> <span class="tf">generateText</span>({
+  model, tools: <span class="tf">clawdbTools</span>(db), prompt
+})
+
+<span class="tc">// Or automatic middleware — zero agent code changes</span>
+<span class="tk">const</span> model = <span class="tf">wrapLanguageModel</span>({
+  model: <span class="tf">openai</span>(<span class="ts">'gpt-4o'</span>),
+  middleware: <span class="tf">clawdbMiddleware</span>(db)
+})
+<span class="to">// ✓ Memory injected before · stored after every call</span></pre>
+      </div>
+
+      <div class="itab-pane" id="i-ant">
+<pre><span class="tk">import</span> { clawdbTools, handleClawDBToolCall,
+         withClawDBMemory } <span class="tk">from</span> <span class="ts">'@clawdb/anthropic'</span>
+
+<span class="tc">// Native Anthropic tool format for Claude</span>
+<span class="tk">const</span> response = <span class="tk">await</span> anthropic.messages.<span class="tf">create</span>({
+  model: <span class="ts">'claude-sonnet-4-20250514'</span>,
+  tools: <span class="tf">clawdbTools</span>(db),
+  messages
+})
+
+<span class="tc">// Handle tool use blocks in one line</span>
+<span class="tk">const</span> result = <span class="tk">await</span> <span class="tf">handleClawDBToolCall</span>(db, response)
+<span class="to">// ✓ clawdb_remember · clawdb_search · clawdb_recall</span></pre>
+      </div>
+
+      <div class="itab-pane" id="i-mcp">
+<pre><span class="tc"># One-command install for every AI editor:</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-claude</span>    <span class="tc"># Claude Desktop</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-cursor</span>    <span class="tc"># Cursor</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-vscode</span>    <span class="tc"># VS Code + Copilot</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-continue</span>  <span class="tc"># Continue.dev</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-zed</span>       <span class="tc"># Zed</span>
+
+<span class="to"># Tools exposed to all hosts:
+# clawdb_remember · clawdb_search · clawdb_recall
+# clawdb_branch_fork · clawdb_branch_merge · clawdb_status</span></pre>
+      </div>
+
+      <div class="itab-pane" id="i-oc">
+<pre><span class="tk">import</span> { ClawDBPlugin, withClawDB } <span class="tk">from</span> <span class="ts">'@clawdb/openclaw'</span>
+
+<span class="tc">// Plugin API — one line gives the agent a full database</span>
+<span class="tk">const</span> agent = <span class="tk">new</span> <span class="tf">OpenClawAgent</span>({
+  plugins: [<span class="tf">ClawDBPlugin</span>({
+    autoStore: <span class="tk">true</span>,     <span class="tc">// store every exchange</span>
+    autoSearch: <span class="tk">true</span>,    <span class="tc">// inject memory context</span>
+    topK: <span class="tk">3</span>,             <span class="tc">// memories per turn</span>
+    syncOnShutdown: <span class="tk">true</span> <span class="tc">// persist to cloud</span>
+  })]
+})
+
+<span class="tc">// Or HOC API:</span>
+<span class="tk">const</span> agent = <span class="tf">withClawDB</span>(<span class="tk">new</span> <span class="tf">OpenClawAgent</span>({...}))
+<span class="to">// ✓ Zero boilerplate. Fully automatic.</span></pre>
+      </div>
+
+      <div class="itab-pane" id="i-gg">
+<pre><span class="tk">import</span> { clawdbTools, handleClawDBFunctionCall,
+         withClawDBMemory } <span class="tk">from</span> <span class="ts">'@clawdb/google-genai'</span>
+
+<span class="tc">// Google GenAI FunctionDeclarations</span>
+<span class="tk">const</span> model = genAI.<span class="tf">getGenerativeModel</span>({
+  model: <span class="ts">'gemini-2.0-flash'</span>,
+  tools: [{ functionDeclarations: <span class="tf">clawdbTools</span>(db) }]
+})
+
+<span class="tc">// Handle function calls</span>
+<span class="tk">const</span> result = <span class="tk">await</span> <span class="tf">handleClawDBFunctionCall</span>(db, call)
+
+<span class="tc">// Or auto-memory wrapper</span>
+<span class="tk">const</span> model = <span class="tf">withClawDBMemory</span>(generativeModel, db)
+<span class="to">// ✓ Works with Gemini 1.5, 2.0, and future models</span></pre>
+      </div>
+
+      <div class="itab-pane" id="i-cursor">
+<pre><span class="tc">// Works in any MCP-compatible editor — auto-detects config path</span>
+
+<span class="tc">// Cursor (~/.cursor/mcp.json):</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-cursor</span>
+
+<span class="tc">// Zed (~/.config/zed/settings.json):</span>
+npx @clawdb/mcp-adapter <span class="tf">--install-zed</span>
+
+<span class="tc">// Print config for any host to paste manually:</span>
+npx @clawdb/mcp-adapter <span class="tf">--print-config</span> --host cursor
+npx @clawdb/mcp-adapter <span class="tf">--print-config</span> --host vscode
+
+<span class="to">// ✓ Your coding agent now has persistent project memory</span></pre>
+      </div>
+
+      <div class="itab-pane" id="i-go">
+<pre><span class="tc">// go get github.com/Claw-DB/claw-sdk/sdks/go</span>
+<span class="tk">import</span> clawdb <span class="ts">"github.com/Claw-DB/claw-sdk/sdks/go"</span>
+
+db, _ := clawdb.<span class="tf">New</span>(clawdb.Options{
+  AgentID: <span class="ts">"my-agent"</span>,
+  <span class="tc">// Endpoint: auto-detected from CLAWDB_URL env var</span>
+})
+<span class="tk">defer</span> db.<span class="tf">Close</span>()
+
+id, _ := db.Memory.<span class="tf">Remember</span>(ctx, <span class="ts">"deploy scheduled"</span>, <span class="tk">nil</span>)
+hits, _ := db.Memory.<span class="tf">Search</span>(ctx, <span class="ts">"deployment"</span>,
+  &amp;clawdb.SearchOptions{TopK: 5})
+<span class="to">// ✓ Full parity with TypeScript and Python SDKs</span></pre>
+      </div>
+
+      <div class="itab-pane" id="i-rs2">
+<pre><span class="tc">// Cargo.toml: clawdb-client = "0.1"</span>
+<span class="tk">use</span> clawdb_client::ClawDBClient;
+
+<span class="tk">let</span> db = ClawDBClient::<span class="tf">auto_provision</span>().<span class="tk">await</span>?;
+<span class="tc">// or:</span>
+<span class="tk">let</span> db = ClawDBClient::<span class="tf">builder</span>()
+  .<span class="tf">endpoint</span>(<span class="ts">"http://localhost:50050"</span>)
+  .<span class="tf">agent_id</span>(<span class="ts">"my-agent"</span>)
+  .<span class="tf">build</span>().<span class="tk">await</span>?;
+
+<span class="tk">let</span> id = db.memory().<span class="tf">remember</span>(<span class="ts">"deploy scheduled"</span>).<span class="tk">await</span>?;
+<span class="tk">let</span> hits = db.memory().<span class="tf">search</span>(<span class="ts">"deployment"</span>).top_k(5).<span class="tf">call</span>().<span class="tk">await</span>?;
+<span class="to">// ✓ Builder pattern · tokio async · full type safety</span></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── ARCHITECTURE ─────────────────────────── -->
+<section class="architecture" id="architecture">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-num">04 ·</span>
+      <div>
+        <h2 class="section-title">Seven engines.<br><em>One runtime.</em></h2>
+        <p class="section-intro" style="margin-top:12px;">
+          Each engine is a published Rust crate. Use them standalone or as the unified ClawDB runtime.
+        </p>
+      </div>
+    </div>
+
+    <div class="arch-modules">
+      <div class="arch-module">
+        <div class="arch-module-tag">claw-core · hot path</div>
+        <h4>Scratchpad <em>memory</em></h4>
+        <p>Microsecond-latency embedded SQLite engine. Zero network dependency. The agent's working memory.</p>
+        <ul class="arch-module-features">
+          <li>WAL journaling, FTS5 full-text</li>
+          <li>LRU cache, ACID transactions</li>
+          <li>&lt;100µs cache reads</li>
+        </ul>
+      </div>
+      <div class="arch-module">
+        <div class="arch-module-tag">claw-vector · retrieval</div>
+        <h4>Semantic <em>search</em></h4>
+        <p>HNSW + flat indexing, hybrid ANN + keyword retrieval. Local or hosted embedding models.</p>
+        <ul class="arch-module-features">
+          <li>Auto Flat→HNSW promotion</li>
+          <li>Metadata filters + rerankers</li>
+          <li>Local sentence-transformers</li>
+        </ul>
+      </div>
+      <div class="arch-module">
+        <div class="arch-module-tag">claw-guard · security</div>
+        <h4>Policy <em>engine</em></h4>
+        <p>Intent-aware access control. Decisions evaluate task, role, scope, and risk — not just identity.</p>
+        <ul class="arch-module-features">
+          <li>JWT-signed sessions</li>
+          <li>Row-level masking</li>
+          <li>BLAKE3 audit chain</li>
+        </ul>
+      </div>
+      <div class="arch-module">
+        <div class="arch-module-tag">claw-branch · planning</div>
+        <h4>Branch &amp; <em>simulate</em></h4>
+        <p>Fork database state, run experiments in isolation, merge what worked. Agents go deliberate.</p>
+        <ul class="arch-module-features">
+          <li>Snapshot-based branches</li>
+          <li>DAG lineage + cycle guard</li>
+          <li>3-way merge strategies</li>
+        </ul>
+      </div>
+      <div class="arch-module">
+        <div class="arch-module-tag">claw-reflect · learning</div>
+        <h4>Auto <em>summarization</em></h4>
+        <p>Scheduled distillation: summarizes sessions, extracts facts, decays stale memory. Gets sharper.</p>
+        <ul class="arch-module-features">
+          <li>7-stage reflection pipeline</li>
+          <li>Contradiction detection</li>
+          <li>Importance scoring + decay</li>
+        </ul>
+      </div>
+      <div class="arch-module">
+        <div class="arch-module-tag">claw-sync · continuity</div>
+        <h4>Encrypted <em>sync</em></h4>
+        <p>CRDT replication with HLC ordering. Local-first, offline-capable, resumable, audit-chained.</p>
+        <ul class="arch-module-features">
+          <li>XSalsa20 + Ed25519 signing</li>
+          <li>Offline queue + backoff</li>
+          <li>Conflict resolution</li>
+        </ul>
+      </div>
+      <div class="arch-module">
+        <div class="arch-module-tag">claw-sdk · surface</div>
+        <h4>SDK &amp; <em>adapters</em></h4>
+        <p>TypeScript, Python, Rust, Go clients. Plus adapters for every major AI framework.</p>
+        <ul class="arch-module-features">
+          <li>Auto-provision entry point</li>
+          <li>gRPC + HTTP REST</li>
+          <li>MCP server (stdio)</li>
+        </ul>
+      </div>
+      <div class="arch-module" style="background:var(--ink);color:#e8e6df;">
+        <div class="arch-module-tag" style="color:rgba(255,255,255,0.3)">clawdb · runtime</div>
+        <h4 style="color:var(--paper)">One <em style="color:var(--accent)">API</em></h4>
+        <p style="color:rgba(255,255,255,0.45);">The unified aggregate runtime. All engines behind a single interface. Auto-provisions the right stack for your environment.</p>
+        <ul class="arch-module-features" style="color:rgba(255,255,255,0.35);">
+          <li>cargo add clawdb</li>
+          <li>pip install clawdb</li>
+          <li>npx clawdb@latest init</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── COMPARISON ───────────────────────────── -->
+<section class="comparison" id="compare">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-num">05 ·</span>
+      <div>
+        <h2 class="section-title">Built for agents.<br>Not <em>retrofitted.</em></h2>
+      </div>
+    </div>
+
+    <table class="cmp-table">
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th>Postgres</th>
+          <th>Pinecone</th>
+          <th>LangChain Mem</th>
+          <th>Mem0</th>
+          <th class="hl">ClawDB</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="feature">Local-first embedded<span>works offline, no network required</span></td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-partial">±</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-yes cmp-hl">✓</td>
+        </tr>
+        <tr>
+          <td class="feature">Native semantic search<span>built-in, no external vector DB</span></td>
+          <td class="cmp-partial">±</td>
+          <td class="cmp-yes">✓</td>
+          <td class="cmp-partial">±</td>
+          <td class="cmp-yes">✓</td>
+          <td class="cmp-yes cmp-hl">✓</td>
+        </tr>
+        <tr>
+          <td class="feature">Zero-config provisioning<span>auto-selects backend for environment</span></td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-yes cmp-hl">✓</td>
+        </tr>
+        <tr>
+          <td class="feature">Branch &amp; simulate<span>fork state, experiment, merge results</span></td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-yes cmp-hl">✓</td>
+        </tr>
+        <tr>
+          <td class="feature">Auto-summarization<span>memory improves over time automatically</span></td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-partial">±</td>
+          <td class="cmp-yes cmp-hl">✓</td>
+        </tr>
+        <tr>
+          <td class="feature">Intent-aware policy<span>access control that knows the agent's task</span></td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-yes cmp-hl">✓</td>
+        </tr>
+        <tr>
+          <td class="feature">Encrypted CRDT sync<span>multi-device, offline-first, auditable</span></td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-yes cmp-hl">✓</td>
+        </tr>
+        <tr>
+          <td class="feature">Framework adapters<span>LangChain, OpenAI, Vercel AI, MCP, Claude</span></td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-partial">±</td>
+          <td class="cmp-yes">✓</td>
+          <td class="cmp-partial">±</td>
+          <td class="cmp-yes cmp-hl">✓</td>
+        </tr>
+        <tr>
+          <td class="feature">Open source<span>Apache-2.0, self-hostable</span></td>
+          <td class="cmp-yes">✓</td>
+          <td class="cmp-no">—</td>
+          <td class="cmp-yes">✓</td>
+          <td class="cmp-partial">±</td>
+          <td class="cmp-yes cmp-hl">✓</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:11px;color:var(--subtle);margin-top:12px;font-family:var(--mono);">
+      ✓ full  ·  ± partial  ·  — not supported  ·  based on publicly documented capabilities.
+    </p>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── PRICING ──────────────────────────────── -->
+<section class="pricing" id="pricing">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-num">06 ·</span>
+      <div>
+        <h2 class="section-title">Simple pricing.<br><em>No surprises.</em></h2>
+        <p class="section-intro" style="margin-top:12px;">
+          Start free. Pay only when you scale. The core engine is always open source.
+        </p>
+      </div>
+    </div>
+
+    <div class="pricing-grid">
+
+      <!-- FREE -->
+      <div class="pricing-plan">
+        <div class="pricing-tag">Tier 1</div>
+        <div class="plan-name">Free</div>
+        <div class="plan-price">
+          <span class="price-amount">$0</span>
+          <span class="price-period">/ forever</span>
+        </div>
+        <p class="plan-desc">Self-host the full engine. Perfect for side projects, prototypes, and solo agents.</p>
+        <ul class="plan-features">
+          <li><span class="feat-check">✓</span> Full open-source runtime</li>
+          <li><span class="feat-check">✓</span> Local SQLite storage</li>
+          <li><span class="feat-check">✓</span> Semantic search (local embeddings)</li>
+          <li><span class="feat-check">✓</span> Branch &amp; simulate</li>
+          <li><span class="feat-check">✓</span> Auto-summarization</li>
+          <li><span class="feat-check">✓</span> All SDKs &amp; adapters</li>
+          <li><span class="feat-check">✓</span> MCP adapter</li>
+          <li><span class="feat-dash">—</span> Cloud sync</li>
+          <li><span class="feat-dash">—</span> Managed hosting</li>
+          <li><span class="feat-dash">—</span> Team workspaces</li>
+        </ul>
+        <a href="https://github.com/Claw-DB/ClawDB" class="plan-cta plan-cta-outline">Get started free →</a>
+      </div>
+
+      <!-- STARTER -->
+      <div class="pricing-plan">
+        <div class="pricing-tag">Tier 2</div>
+        <div class="plan-name">Starter</div>
+        <div class="plan-price">
+          <span class="price-amount">$9</span>
+          <span class="price-period">/ month</span>
+        </div>
+        <p class="plan-desc">Cloud sync for solo developers and small agents in production.</p>
+        <ul class="plan-features">
+          <li><span class="feat-check">✓</span> Everything in Free</li>
+          <li><span class="feat-check">✓</span> Cloud sync hub</li>
+          <li><span class="feat-check">✓</span> 500k memory ops / mo</li>
+          <li><span class="feat-check">✓</span> 5 GB storage</li>
+          <li><span class="feat-check">✓</span> 1 workspace</li>
+          <li><span class="feat-check">✓</span> Multi-device continuity</li>
+          <li><span class="feat-check">✓</span> 7-day audit log</li>
+          <li><span class="feat-check">✓</span> Email support</li>
+          <li><span class="feat-dash">—</span> Multiple workspaces</li>
+          <li><span class="feat-dash">—</span> SSO / SCIM</li>
+        </ul>
+        <a href="/signup" data-launch-dashboard="true" class="plan-cta plan-cta-outline">Dashboard →</a>
+      </div>
+
+      <!-- BASIC — featured -->
+      <div class="pricing-plan featured">
+        <div class="pricing-tag"><span class="popular-badge">Most popular</span> Tier 3</div>
+        <div class="plan-name" style="color:var(--paper);">Basic</div>
+        <div class="plan-price">
+          <span class="price-amount">$29</span>
+          <span class="price-period">/ month</span>
+        </div>
+        <p class="plan-desc">Production workloads with higher scale, team collaboration, and priority support.</p>
+        <ul class="plan-features">
+          <li><span class="feat-check">✓</span> Everything in Starter</li>
+          <li><span class="feat-check">✓</span> Unlimited memory ops</li>
+          <li><span class="feat-check">✓</span> 50 GB storage</li>
+          <li><span class="feat-check">✓</span> 10 workspaces</li>
+          <li><span class="feat-check">✓</span> Team collaboration</li>
+          <li><span class="feat-check">✓</span> 90-day audit log</li>
+          <li><span class="feat-check">✓</span> Priority support</li>
+          <li><span class="feat-check">✓</span> Policy dashboard</li>
+          <li><span class="feat-check">✓</span> Usage analytics</li>
+          <li><span class="feat-dash">—</span> SSO / SCIM</li>
+        </ul>
+        <a href="/signup" data-launch-dashboard="true" class="plan-cta plan-cta-accent">Dashboard →</a>
+      </div>
+
+      <!-- ENTERPRISE -->
+      <div class="pricing-plan">
+        <div class="pricing-tag">Tier 4</div>
+        <div class="plan-name">Enterprise</div>
+        <div class="plan-price">
+          <span class="price-amount" style="font-size:32px;">Custom</span>
+        </div>
+        <p class="plan-desc">Negotiated limits, dedicated infra, compliance, and premium SLAs for large organisations.</p>
+        <ul class="plan-features">
+          <li><span class="feat-check">✓</span> Everything in Basic</li>
+          <li><span class="feat-check">✓</span> Unlimited workspaces</li>
+          <li><span class="feat-check">✓</span> Dedicated sync cluster</li>
+          <li><span class="feat-check">✓</span> SSO &amp; SCIM</li>
+          <li><span class="feat-check">✓</span> 1-year audit log</li>
+          <li><span class="feat-check">✓</span> HIPAA / SOC 2 (roadmap)</li>
+          <li><span class="feat-check">✓</span> SLA uptime guarantee</li>
+          <li><span class="feat-check">✓</span> Dedicated Slack channel</li>
+          <li><span class="feat-check">✓</span> Custom data residency</li>
+          <li><span class="feat-check">✓</span> On-prem deployment</li>
+        </ul>
+        <a href="#" class="plan-cta plan-cta-outline">Talk to us →</a>
+      </div>
+
+    </div>
+
+    <p class="pricing-footnote">
+      All plans include the full open-source engine. Cloud plans add managed hosting, sync, and support.
+      <a href="#">View full feature comparison →</a>
+    </p>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── ROADMAP ──────────────────────────────── -->
+<section class="roadmap" id="roadmap">
+  <div class="container">
+    <div class="section-header">
+      <span class="section-num">07 ·</span>
+      <div>
+        <h2 class="section-title">Open source first.<br><em>Cloud second.</em></h2>
+        <p class="section-intro" style="margin-top:12px;">
+          Built in public. Apache-2.0 forever. Cloud is the optional layer on top.
+        </p>
+      </div>
+    </div>
+
+    <div class="roadmap-track">
+      <div class="phase">
+      
+        <h4>Core engine</h4>
+        <ul>
+          <li>claw-core (storage)</li>
+          <li>claw-vector (search)</li>
+          <li>claw-guard (policy)</li>
+          <li>clawdb runtime</li>
+          <li>SDK (TS, Python, Rust, Go)</li>
+        </ul>
+      </div>
+      <div class="phase">
+    
+        <h4>Persistence &amp; learning</h4>
+        <ul>
+          <li>claw-sync (CRDT)</li>
+          <li>claw-reflect (distillation)</li>
+          <li>claw-branch (simulation)</li>
+          <li>MCP adapter</li>
+          <li>Framework adapters</li>
+        </ul>
+      </div>
+      <div class="phase">
+     
+        <h4>Tooling &amp; DX</h4>
+        <ul>
+          <li>claw-console (dashboard)</li>
+          <li>claw-bench (benchmarks)</li>
+          <li>npx clawdb init v2</li>
+          <li>Editor plugins</li>
+          <li>Docs site</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <h4>Managed cloud</h4>
+        <ul>
+          <li>cloud.clawdb.dev</li>
+          <li>Hosted sync hub</li>
+          <li>Team workspaces</li>
+          <li>Enterprise policy</li>
+          <li>Global replication</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="section-divider">
+
+<!-- ─── FINAL CTA ─────────────────────────────── -->
+<section class="final-cta" id="waitlist">
+  <div class="container" style="position:relative;z-index:2;">
+    <h2 class="cta-headline">
+      Give your agent<br>a <em>database.</em>
+    </h2>
+    <p class="cta-subtext">
+      The fastest path from "I need memory" to "it works in production."
+       Start building right now.
+    </p>
+
+    <div class="cta-buttons">
+      <a href="https://github.com/Claw-DB/ClawDB" class="btn btn-cta-ghost btn">
+        ★ Star on GitHub
+      </a>
+      <a href="/signup" data-launch-dashboard="true" class="btn btn-cta-primary btn">
+        Dashboard →
+      </a>
+      <a href="/docs" class="btn btn-cta-ghost btn">
+        Read the docs
+      </a>
+    </div>
+
+    <form class="waitlist-form" id="waitlist-form"
+          onsubmit="event.preventDefault();this.innerHTML='<div style=\'padding:14px 24px;font-family:var(--mono);font-size:13px;color:#8fdb90;text-align:center;width:100%;\'>✓ You\'re on the list.</div>'">
+      <input class="waitlist-input" type="email" placeholder="your@email.dev" required aria-label="Email address"/>
+      <button class="waitlist-btn" type="submit">Subscribe →</button>
+    </form>
+
+    <p style="font-size:11px;color:rgba(255,255,255,0.2);margin-top:20px;font-family:var(--mono);position:relative;z-index:2;">
+      Apache-2.0 · Open source · YC S26 · No spam, unsubscribe any time
+    </p>
+  </div>
+</section>
+
+<!-- ─── FOOTER ────────────────────────────────── -->
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div>
+        <div class="footer-brand" style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+          <svg width="36" height="36" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="12" fill="#1a1916"/>
+            <g stroke="#6c8fff" stroke-linecap="round" stroke-linejoin="round" fill="none">
+              <path stroke-width="3.5" d="M20 47 C18 38 22 30 26 24 C28 20 28 15 24 13"/>
+              <path stroke-width="3.5" d="M31 47 C30 37 34 28 37 22 C39 17 37 12 33 11"/>
+              <path stroke-width="3.5" d="M41 47 C41 37 45 29 47 23 C49 17 46 12 42 12"/>
+              <ellipse cx="32" cy="51" rx="14" ry="3.5" stroke-width="2" opacity="0.4"/>
+            </g>
+          </svg>
+          <span style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--paper);">ClawDB</span>
+        </div>
+        <p class="footer-brand-sub">
+          Zero-config database for AI agents. Local-first, open source, production-grade.
+        </p>
+      </div>
+      <div class="footer-col">
+        <h6>Product</h6>
+        <a href="#how">Setup</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#compare">vs. The Stack</a>
+        <a href="#pricing">Pricing</a>
+    
+      </div>
+      <div class="footer-col">
+        <h6>Crates</h6>
+        <a href="https://github.com/Claw-DB/claw-core">claw-core</a>
+        <a href="https://github.com/Claw-DB/claw-vector">claw-vector</a>
+        <a href="https://github.com/Claw-DB/claw-sync">claw-sync</a>
+        <a href="https://github.com/Claw-DB/claw-guard">claw-guard</a>
+        <a href="https://github.com/Claw-DB/claw-branch">claw-branch</a>
+      </div>
+      <div class="footer-col">
+        <h6>Community</h6>
+        <a href="https://github.com/Claw-DB">GitHub</a>
+        <a href="#">Discord</a>
+        <a href="#">Twitter / X</a>
+        <a href="#">Hacker News</a>
+        <a href="#">Docs</a>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <span>© 2026 ClawDB · Apache License 2.0</span>
+      <div class="footer-badges">
+        <span class="footer-badge">YC S26</span>
+        <span class="footer-badge">Apache-2.0</span>
+        <span class="footer-badge">Rust · Python · TS · Go</span>
+        <span class="footer-badge">v0.1.0</span>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script>
+// Tab switching — install snippet
+function switchTab(btn, paneId) {
+  const wrapper = btn.closest('.install-block');
+  wrapper.querySelectorAll('.install-tab').forEach(t => t.classList.remove('active'));
+  wrapper.querySelectorAll('.install-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(paneId).classList.add('active');
+}
+
+// Tab switching — integrations
+function switchITab(btn, paneId) {
+  const wrapper = btn.closest('.integration-tabs-wrapper');
+  wrapper.querySelectorAll('.itab').forEach(t => t.classList.remove('active'));
+  wrapper.querySelectorAll('.itab-pane').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(paneId).classList.add('active');
+}
+
+// Scroll reveal
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.style.opacity = '1';
+      e.target.style.transform = 'translateY(0)';
+    }
+  });
+}, { threshold: 0.08 });
+
+document.querySelectorAll('.arch-module, .step, .phase, .stat-cell, .logo-chip').forEach(el => {
+  el.style.opacity = '0';
+  el.style.transform = 'translateY(16px)';
+  el.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+  observer.observe(el);
+});
+
+// Launch Dashboard CTA routing
+document.querySelectorAll('a[data-launch-dashboard="true"]').forEach((anchor) => {
+  anchor.addEventListener('click', (event) => {
+    event.preventDefault();
+    const token = localStorage.getItem('claw_access_token');
+    const destination = token && token.trim() ? '/dashboard' : '/signup';
+    window.location.href = destination;
+  });
+});
+</script>
+</body>
+</html>
