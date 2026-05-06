@@ -5,12 +5,12 @@ import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, ArrowUpRight, Receipt, Zap, Loader2 } from 'lucide-react';
 import { DashboardLayout, Topbar, PageWrapper } from '@/components/layout';
 import { Button, Badge, Card, CardBody, CardHeader, CardTitle, UsageBar } from '@/components/ui';
-import { billingApi, usageApi, type Invoice } from '@/lib/api-client';
+import { billingApi, instanceApi, usageApi, type Invoice } from '@/lib/api-client';
 import { getAccessToken } from '@/lib/auth';
 import { useWorkspace } from '@/app/providers';
 import { cn } from '@/lib/utils';
 
-type PlanId = 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE';
+type PlanId = 'FREE' | 'STARTER' | 'BASIC' | 'PRO' | 'ENTERPRISE';
 
 const PLANS: Array<{
   id: PlanId;
@@ -25,15 +25,22 @@ const PLANS: Array<{
     name: 'Free',
     price: '$0',
     period: '/mo',
-    features: ['1 instance (Nano)', '1M memory ops/mo', '5 GB storage', '3 team members', '3-day backups'],
+    features: ['1 instance (Nano)', '100k memory ops/mo', '100 MB storage', '3 team members', '3-day backups'],
   },
   {
     id: 'STARTER',
     name: 'Starter',
+    price: '$9',
+    period: '/mo',
+    features: ['3 instances (up to Micro)', '500k memory ops/mo', '5 GB storage', '5 team members', '7-day backups', 'Email support'],
+  },
+  {
+    id: 'BASIC',
+    name: 'Basic',
     price: '$29',
     period: '/mo',
     highlight: true,
-    features: ['3 instances (up to Small)', '10M memory ops/mo', '50 GB storage', '10 team members', '7-day backups', 'Priority support'],
+    features: ['10 instances (up to Small)', '10M memory ops/mo', '50 GB storage', '25 team members', '30-day backups', 'Priority support', 'Policy dashboard'],
   },
   {
     id: 'PRO',
@@ -52,10 +59,11 @@ const PLANS: Array<{
 ];
 
 const PLAN_LIMITS: Record<string, { ops: number; storageGb: number }> = {
-  FREE:       { ops: 1_000_000,   storageGb: 5 },
-  STARTER:    { ops: 10_000_000,  storageGb: 50 },
-  PRO:        { ops: 100_000_000, storageGb: 500 },
-  ENTERPRISE: { ops: Infinity,    storageGb: Infinity },
+  FREE:       { ops: 100_000,      storageGb: 0.1 },
+  STARTER:    { ops: 500_000,      storageGb: 5 },
+  BASIC:      { ops: 10_000_000,   storageGb: 50 },
+  PRO:        { ops: 100_000_000,  storageGb: 500 },
+  ENTERPRISE: { ops: Infinity,     storageGb: Infinity },
 };
 
 function PlanCard({ plan, isCurrentPlan, onUpgrade }: {
@@ -124,8 +132,20 @@ export default function BillingPage() {
     enabled: !!workspaceId && !!token,
   });
 
+  const instancesQ = useQuery({
+    queryKey: ['instances', workspaceId],
+    queryFn: () => instanceApi.list(token, workspaceId!),
+    enabled: !!workspaceId && !!token,
+  });
+
   const invoices: Invoice[] = billingQ.data?.invoices ?? [];
   const usage = usageQ.data;
+  const storageUsedGb = React.useMemo(() => {
+    const instances = instancesQ.data ?? [];
+    return instances
+      .filter((instance) => instance.status !== 'TERMINATED' && instance.status !== 'TERMINATING')
+      .reduce((sum, instance) => sum + instance.storageGb, 0);
+  }, [instancesQ.data]);
 
   const handleUpgrade = async (planId: string) => {
     if (!workspaceId || !token) return;
@@ -195,7 +215,7 @@ export default function BillingPage() {
               <CardBody>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <UsageBar label="Memory Ops" used={usage.memoryOps} total={limits.ops} unit="ops" />
-                  <UsageBar label="Storage" used={usage.storageGb} total={limits.storageGb} unit="GB" />
+                  <UsageBar label="Storage" used={storageUsedGb} total={limits.storageGb} unit="GB" />
                 </div>
                 {billingQ.data?.currentPeriodEnd && (
                   <p className="text-xs text-ink-3 mt-4">

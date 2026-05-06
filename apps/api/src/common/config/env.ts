@@ -37,10 +37,12 @@ const envSchema = z.object({
   // LemonSqueezy Billing
   LEMONSQUEEZY_WEBHOOK_SECRET: z.string().optional(),
   LEMONSQUEEZY_CHECKOUT_STARTER: optionalUrl,
+  LEMONSQUEEZY_CHECKOUT_BASIC: optionalUrl,
   LEMONSQUEEZY_CHECKOUT_PRO: optionalUrl,
   LEMONSQUEEZY_CHECKOUT_ENTERPRISE: optionalUrl,
   LEMONSQUEEZY_BILLING_PORTAL_URL: optionalUrl,
   LEMONSQUEEZY_VARIANT_STARTER: z.string().optional(),
+  LEMONSQUEEZY_VARIANT_BASIC: z.string().optional(),
   LEMONSQUEEZY_VARIANT_PRO: z.string().optional(),
   LEMONSQUEEZY_VARIANT_ENTERPRISE: z.string().optional(),
   

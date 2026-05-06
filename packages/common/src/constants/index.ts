@@ -31,6 +31,14 @@ export const PLANS = {
     maxStorageGb: 20,
     maxBackupDays: 7,
   },
+  BASIC: {
+    name: 'Basic',
+    priceUsd: 29,
+    maxInstances: 10,
+    maxMembers: 25,
+    maxStorageGb: 50,
+    maxBackupDays: 30,
+  },
   PRO: {
     name: 'Pro',
     priceUsd: 39,
@@ -61,6 +69,12 @@ export const PLAN_LIMITS = {
     maxInstances: 3,
     maxMembers: 5,
     maxTier: 'MICRO',
+  },
+  BASIC: {
+    rpmLimit: 1000,
+    maxInstances: 10,
+    maxMembers: 25,
+    maxTier: 'SMALL',
   },
   PRO: {
     rpmLimit: 2000,
@@ -152,7 +166,7 @@ export const BCRYPT_ROUNDS = 12;
 
 export const USAGE_INCLUDED_ALLOWANCES = {
   FREE: {
-    memoryOpsCount: 10000,
+    memoryOpsCount: 100000,
     vectorOpsCount: 1000,
     syncOpsCount: 1000,
     bandwidthGb: 1,
@@ -168,6 +182,15 @@ export const USAGE_INCLUDED_ALLOWANCES = {
     reflectJobsCount: 1000,
     computeMinutes: 43200,
     storageGbHours: 2000,
+  },
+  BASIC: {
+    memoryOpsCount: 1000000,
+    vectorOpsCount: 100000,
+    syncOpsCount: 100000,
+    bandwidthGb: 200,
+    reflectJobsCount: 5000,
+    computeMinutes: 100000,
+    storageGbHours: 5000,
   },
   PRO: {
     memoryOpsCount: 2000000,

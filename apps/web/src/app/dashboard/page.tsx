@@ -22,8 +22,9 @@ function fmtBytes(gb: number) {
 }
 
 const PLAN_LIMITS: Record<string, { ops: number; storageGb: number; members: number }> = {
-  FREE:       { ops: 1_000_000,   storageGb: 5,   members: 3 },
-  STARTER:    { ops: 10_000_000,  storageGb: 50,  members: 10 },
+  FREE:       { ops: 100_000,     storageGb: 0.1, members: 3 },
+  STARTER:    { ops: 500_000,     storageGb: 5,   members: 5 },
+  BASIC:      { ops: 10_000_000,  storageGb: 50,  members: 25 },
   PRO:        { ops: 100_000_000, storageGb: 500, members: 50 },
   ENTERPRISE: { ops: Infinity,    storageGb: Infinity, members: Infinity },
 };

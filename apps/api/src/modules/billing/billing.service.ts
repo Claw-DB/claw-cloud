@@ -249,6 +249,7 @@ export class BillingService {
   private resolvePlanFromVariantId(variantId: string | null, fallback: WorkspacePlan): WorkspacePlan {
     const map: Record<string, WorkspacePlan> = {
       [process.env.LEMONSQUEEZY_VARIANT_STARTER ?? '']: 'STARTER',
+      [process.env.LEMONSQUEEZY_VARIANT_BASIC ?? '']: 'BASIC',
       [process.env.LEMONSQUEEZY_VARIANT_PRO ?? '']: 'PRO',
       [process.env.LEMONSQUEEZY_VARIANT_ENTERPRISE ?? '']: 'ENTERPRISE',
     };
@@ -267,6 +268,7 @@ export class BillingService {
   private resolveCheckoutUrl(plan: Exclude<WorkspacePlan, 'FREE'>): string | null {
     const map: Record<Exclude<WorkspacePlan, 'FREE'>, string | undefined> = {
       STARTER: process.env.LEMONSQUEEZY_CHECKOUT_STARTER,
+      BASIC: process.env.LEMONSQUEEZY_CHECKOUT_BASIC,
       PRO: process.env.LEMONSQUEEZY_CHECKOUT_PRO,
       ENTERPRISE: process.env.LEMONSQUEEZY_CHECKOUT_ENTERPRISE,
     };

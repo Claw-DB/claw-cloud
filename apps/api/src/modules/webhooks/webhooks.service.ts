@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Webhook, WebhookDelivery } from '@prisma/client';
 import crypto from 'node:crypto';
+import net from 'node:net';
 import { CreateWebhookDtoType, JOB_NAMES, QUEUE_NAMES, UpdateWebhookDtoType, WEBHOOK_SECRET_BYTES } from '@claw/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { getQueue } from '../../common/infra/queue.js';
@@ -12,15 +13,15 @@ export class WebhooksService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(workspaceId: string, dto: CreateWebhookDtoType): Promise<Webhook & { secret: string }> {
-    const secret = crypto.randomBytes(WEBHOOK_SECRET_BYTES).toString('hex');
-    const secretHash = this.hashSecret(secret);
+    const validatedUrl = this.validateWebhookUrl(dto.url);
+    const secret = this.generateWebhookSecret();
     const webhook = await this.prisma.webhook.create({
       data: {
         workspaceId,
-        url: dto.url,
+        url: validatedUrl,
         events: dto.events,
         enabled: dto.enabled,
-        secretHash,
+        secretHash: secret,
       },
     });
 
@@ -36,10 +37,11 @@ export class WebhooksService {
 
   async update(id: string, workspaceId: string, dto: UpdateWebhookDtoType) {
     await this.findWebhook(id, workspaceId);
+    const validatedUrl = dto.url ? this.validateWebhookUrl(dto.url) : undefined;
     return this.prisma.webhook.update({
       where: { id },
       data: {
-        url: dto.url,
+        url: validatedUrl,
         events: dto.events,
         enabled: dto.enabled,
       },
@@ -53,10 +55,10 @@ export class WebhooksService {
 
   async rotateSecret(id: string, workspaceId: string) {
     await this.findWebhook(id, workspaceId);
-    const secret = crypto.randomBytes(WEBHOOK_SECRET_BYTES).toString('hex');
+    const secret = this.generateWebhookSecret();
     await this.prisma.webhook.update({
       where: { id },
-      data: { secretHash: this.hashSecret(secret) },
+      data: { secretHash: secret },
     });
     return { secret };
   }
@@ -108,7 +110,58 @@ export class WebhooksService {
     return webhook;
   }
 
-  private hashSecret(secret: string) {
-    return crypto.createHash('sha256').update(secret).digest('hex');
+  private generateWebhookSecret() {
+    return crypto.randomBytes(WEBHOOK_SECRET_BYTES).toString('base64url');
+  }
+
+  private validateWebhookUrl(rawUrl: string) {
+    let parsed: URL;
+    try {
+      parsed = new URL(rawUrl);
+    } catch {
+      throw new BadRequestException('Webhook URL is invalid');
+    }
+
+    const protocol = parsed.protocol.toLowerCase();
+    if (protocol !== 'http:' && protocol !== 'https:') {
+      throw new BadRequestException('Webhook URL protocol must be http or https');
+    }
+
+    if (process.env.NODE_ENV === 'production' && protocol !== 'https:') {
+      throw new BadRequestException('Webhook URL must use HTTPS in production');
+    }
+
+    const host = parsed.hostname.toLowerCase();
+    const blockedHosts = new Set(['localhost', '127.0.0.1', '0.0.0.0', '::1']);
+    if (blockedHosts.has(host) || host.endsWith('.local') || host.endsWith('.internal')) {
+      throw new BadRequestException('Webhook URL host is not allowed');
+    }
+
+    if (net.isIP(host) && this.isPrivateIp(host)) {
+      throw new BadRequestException('Webhook URL cannot target private network addresses');
+    }
+
+    return parsed.toString();
+  }
+
+  private isPrivateIp(host: string) {
+    const ipVersion = net.isIP(host);
+    if (ipVersion === 4) {
+      const [a, b] = host.split('.').map(Number);
+      return (
+        a === 10
+        || a === 127
+        || (a === 169 && b === 254)
+        || (a === 172 && b >= 16 && b <= 31)
+        || (a === 192 && b === 168)
+      );
+    }
+
+    if (ipVersion === 6) {
+      const normalized = host.toLowerCase();
+      return normalized === '::1' || normalized.startsWith('fc') || normalized.startsWith('fd') || normalized.startsWith('fe80');
+    }
+
+    return false;
   }
 }

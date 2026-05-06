@@ -1,12 +1,13 @@
 'use client';
 
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { FormEvent, useMemo, useState } from 'react';
 import { Button, Card, CardBody, CardHeader, CardTitle, Input } from '@/components/ui';
 import { authApi } from '@/lib/api-client';
 
-export default function ResetPasswordPage() {
+function ResetPasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = useMemo(() => searchParams.get('token') ?? '', [searchParams]);
@@ -69,5 +70,18 @@ export default function ResetPasswordPage() {
         </CardBody>
       </Card>
     </main>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={(
+      <main className="mx-auto flex min-h-[80vh] w-full max-w-md items-center justify-center px-4 text-sm text-ink-3">
+        Loading reset form...
+      </main>
+    )}
+    >
+      <ResetPasswordContent />
+    </Suspense>
   );
 }

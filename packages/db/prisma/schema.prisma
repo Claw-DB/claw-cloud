@@ -21,6 +21,7 @@ enum OAuthProvider {
 enum WorkspacePlan {
   FREE
   STARTER
+  BASIC
   PRO
   ENTERPRISE
 }

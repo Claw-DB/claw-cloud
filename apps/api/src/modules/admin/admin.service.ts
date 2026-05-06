@@ -10,7 +10,7 @@ interface Pagination {
 interface WorkspaceFilters extends Pagination {
   search?: string;
   status?: WorkspaceStatus;
-  plan?: 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE';
+  plan?: 'FREE' | 'STARTER' | 'BASIC' | 'PRO' | 'ENTERPRISE';
 }
 
 interface InstanceFilters extends Pagination {

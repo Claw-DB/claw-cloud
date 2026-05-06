@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ADMIN_ACCESS_TOKEN_KEY } from '../lib/admin-client';
+import { ADMIN_ACCESS_TOKEN_KEY, adminApi } from '../lib/admin-client';
 
 type Props = {
   children: (token: string, refreshKey: number, onRefresh: () => void) => React.ReactNode;
@@ -11,24 +11,56 @@ export function AdminAuthGate({ children }: Props) {
   const [token, setToken] = React.useState<string>('');
   const [inputToken, setInputToken] = React.useState<string>('');
   const [refreshKey, setRefreshKey] = React.useState(0);
+  const [isValidating, setIsValidating] = React.useState(false);
+  const [authError, setAuthError] = React.useState<string>('');
 
   React.useEffect(() => {
     const saved = localStorage.getItem(ADMIN_ACCESS_TOKEN_KEY) ?? '';
-    setToken(saved);
     setInputToken(saved);
+    if (!saved.trim()) {
+      setToken('');
+      return;
+    }
+
+    setIsValidating(true);
+    setAuthError('');
+    adminApi.getOverview(saved)
+      .then(() => {
+        setToken(saved);
+      })
+      .catch((error) => {
+        setAuthError(error instanceof Error ? error.message : 'Invalid admin token');
+        localStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
+        setToken('');
+        setInputToken('');
+      })
+      .finally(() => setIsValidating(false));
   }, []);
 
-  const saveToken = React.useCallback(() => {
+  const saveToken = React.useCallback(async () => {
     const trimmed = inputToken.trim();
-    localStorage.setItem(ADMIN_ACCESS_TOKEN_KEY, trimmed);
-    setToken(trimmed);
-    setRefreshKey((prev) => prev + 1);
+    if (!trimmed) return;
+
+    setIsValidating(true);
+    setAuthError('');
+    try {
+      await adminApi.getOverview(trimmed);
+      localStorage.setItem(ADMIN_ACCESS_TOKEN_KEY, trimmed);
+      setToken(trimmed);
+      setRefreshKey((prev) => prev + 1);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : 'Invalid admin token');
+      setToken('');
+    } finally {
+      setIsValidating(false);
+    }
   }, [inputToken]);
 
   const clearToken = React.useCallback(() => {
     localStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
     setToken('');
     setInputToken('');
+    setAuthError('');
     setRefreshKey((prev) => prev + 1);
   }, []);
 
@@ -40,6 +72,9 @@ export function AdminAuthGate({ children }: Props) {
           <p className="text-sm text-[#9aa3b8]">
             Paste a valid JWT access token for an admin account. This token is stored only in your browser for this admin origin.
           </p>
+          {authError && (
+            <p className="text-sm text-[#f56565]">{authError}</p>
+          )}
           <textarea
             className="w-full h-36 rounded-md border border-[#1e2433] bg-[#131720] text-sm text-[#e8eaf0] p-3"
             placeholder="Paste admin access token"
@@ -49,10 +84,10 @@ export function AdminAuthGate({ children }: Props) {
           <button
             type="button"
             onClick={saveToken}
-            disabled={!inputToken.trim()}
+            disabled={!inputToken.trim() || isValidating}
             className="px-4 py-2 rounded-md bg-[#6c8fff] text-white text-sm disabled:opacity-60"
           >
-            Save token
+            {isValidating ? 'Validating...' : 'Save token'}
           </button>
         </div>
       </div>

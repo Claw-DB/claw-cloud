@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 export const LEMON_VARIANTS = {
   FREE: null,
   STARTER: process.env.LEMONSQUEEZY_VARIANT_STARTER ?? null,
+  BASIC: process.env.LEMONSQUEEZY_VARIANT_BASIC ?? null,
   PRO: process.env.LEMONSQUEEZY_VARIANT_PRO ?? null,
   ENTERPRISE: process.env.LEMONSQUEEZY_VARIANT_ENTERPRISE ?? null,
 } as const;

@@ -100,14 +100,27 @@ export class BillingController {
       (acc, record) => ({
         memoryOps: acc.memoryOps + Number(record.memoryOpsCount),
         syncRounds: acc.syncRounds + Number(record.syncOpsCount),
-        storageGb: acc.storageGb + Number(record.storageGbHours),
+        storageGbHours: acc.storageGbHours + Number(record.storageGbHours),
         bandwidthGb: acc.bandwidthGb + Number(record.bandwidthGb),
       }),
-      { memoryOps: 0, syncRounds: 0, storageGb: 0, bandwidthGb: 0 },
+      { memoryOps: 0, syncRounds: 0, storageGbHours: 0, bandwidthGb: 0 },
     );
+
+    const storage = await this.prisma.instance.aggregate({
+      where: {
+        workspaceId,
+        status: {
+          notIn: ['TERMINATED', 'TERMINATING'],
+        },
+      },
+      _sum: {
+        storageGb: true,
+      },
+    });
 
     return {
       ...totals,
+      storageGb: storage._sum.storageGb ?? 0,
       periodStart: periodStart.toISOString(),
       periodEnd: periodEnd.toISOString(),
     };

@@ -1,5 +1,5 @@
 // Shared TypeScript interfaces for User entities
-export type WorkspacePlan = 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE';
+export type WorkspacePlan = 'FREE' | 'STARTER' | 'BASIC' | 'PRO' | 'ENTERPRISE';
 export type WorkspaceStatus = 'ACTIVE' | 'SUSPENDED' | 'DELETED';
 export type MemberRole = 'OWNER' | 'ADMIN' | 'DEVELOPER' | 'READONLY';
 export type InstanceRegion = 'US_EAST' | 'US_WEST' | 'EU_WEST' | 'EU_CENTRAL' | 'APAC_EAST';

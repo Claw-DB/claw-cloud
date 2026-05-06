@@ -126,7 +126,7 @@ export const UpdateWebhookDto = CreateWebhookDto.partial().refine(
 
 export const BillingCheckoutDto = z.object({
   workspaceId: z.string().uuid(),
-  plan: z.enum(['STARTER', 'PRO', 'ENTERPRISE']),
+  plan: z.enum(['STARTER', 'BASIC', 'PRO', 'ENTERPRISE']),
   successUrl: z.string().url(),
   cancelUrl: z.string().url(),
 });

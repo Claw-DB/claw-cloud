@@ -1,24 +1,46 @@
 export const ADMIN_ACCESS_TOKEN_KEY = 'claw_admin_access_token';
 
-const rawApiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
-const API_BASE = rawApiBase.endsWith('/api/v1')
-  ? rawApiBase
-  : `${rawApiBase.replace(/\/$/, '')}/api/v1`;
+function resolveApiBase() {
+  const envBase = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (envBase) {
+    return envBase.endsWith('/api/v1')
+      ? envBase
+      : `${envBase.replace(/\/$/, '')}/api/v1`;
+  }
+
+  if (typeof window === 'undefined') {
+    return 'http://localhost:4000/api/v1';
+  }
+
+  const { hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:4000/api/v1';
+  }
+
+  return 'https://api.clawdb.dev/api/v1';
+}
+
+const API_BASE = resolveApiBase();
 
 export async function adminFetch<T>(
   path: string,
   token: string,
   init?: RequestInit,
 ): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...(init?.headers ?? {}),
-    },
-    cache: 'no-store',
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(init?.headers ?? {}),
+      },
+      cache: 'no-store',
+    });
+  } catch {
+    throw new Error(`Unable to reach API at ${API_BASE}. Check NEXT_PUBLIC_API_URL and API server status.`);
+  }
 
   if (!res.ok) {
     const payload = (await res.json().catch(() => null)) as { message?: string } | null;
@@ -60,7 +82,7 @@ export type AdminWorkspaceRow = {
   id: string;
   slug: string;
   name: string;
-  plan: 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE';
+  plan: 'FREE' | 'STARTER' | 'BASIC' | 'PRO' | 'ENTERPRISE';
   status: 'ACTIVE' | 'SUSPENDED' | 'DELETED';
   createdAt: string;
   owner: { id: string; email: string; name: string };

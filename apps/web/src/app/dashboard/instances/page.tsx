@@ -35,14 +35,14 @@ const REGIONS = [
 const ALL_TIERS = [
   { value: 'NANO',   label: 'Nano — 0.25 vCPU · 50 MB mem · 100 MB storage', minPlan: 'FREE' },
   { value: 'MICRO',  label: 'Micro — 0.5 vCPU · 512 MB mem · 5 GB storage',  minPlan: 'STARTER' },
-  { value: 'SMALL',  label: 'Small — 1 vCPU · 1 GB mem · 20 GB storage',      minPlan: 'STARTER' },
-  { value: 'MEDIUM', label: 'Medium — 2 vCPU · 2 GB mem · 50 GB storage',     minPlan: 'PRO' },
+  { value: 'SMALL',  label: 'Small — 1 vCPU · 1 GB mem · 20 GB storage',      minPlan: 'BASIC' },
+  { value: 'MEDIUM', label: 'Medium — 2 vCPU · 2 GB mem · 50 GB storage',     minPlan: 'BASIC' },
   { value: 'LARGE',  label: 'Large — 4 vCPU · 4 GB mem · 100 GB storage',     minPlan: 'PRO' },
   { value: 'XL',     label: 'XL — 8 vCPU · 8 GB mem · 500 GB storage',        minPlan: 'ENTERPRISE' },
 ];
 
 const PLAN_TIER_ORDER: Record<string, number> = {
-  FREE: 0, STARTER: 1, PRO: 2, ENTERPRISE: 3,
+  FREE: 0, STARTER: 1, BASIC: 2, PRO: 3, ENTERPRISE: 4,
 };
 
 function tiersForPlan(plan: string) {
@@ -169,7 +169,7 @@ function DeleteDialog({
   const mutation = useMutation({
     mutationFn: () => instanceApi.delete(token, workspaceId!, instance!.id),
     onSuccess: () => {
-      toast.success(`Instance "${instance?.name}" termination queued`);
+      toast.success(`Instance "${instance?.name}" deleted`);
       setConfirm('');
       if (instance?.id) onDeleted(instance.id);
       onClose();

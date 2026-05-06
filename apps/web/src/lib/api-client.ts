@@ -1,8 +1,25 @@
 // Typed API client for communicating with the claw-cloud NestJS API from the frontend
-const rawApiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api/v1';
-const API_BASE = rawApiBase.endsWith('/api/v1')
-  ? rawApiBase
-  : `${rawApiBase.replace(/\/$/, '')}/api/v1`;
+function resolveApiBase() {
+  const envBase = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (envBase) {
+    return envBase.endsWith('/api/v1')
+      ? envBase
+      : `${envBase.replace(/\/$/, '')}/api/v1`;
+  }
+
+  if (typeof window === 'undefined') {
+    return 'http://localhost:4000/api/v1';
+  }
+
+  const { hostname } = window.location;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:4000/api/v1';
+  }
+
+  return 'https://api.clawdb.dev/api/v1';
+}
+
+const API_BASE = resolveApiBase();
 
 export async function apiFetch<T>(
   path: string,
@@ -13,10 +30,15 @@ export async function apiFetch<T>(
     ...(options?.token ? { Authorization: `Bearer ${options.token}` } : {}),
   };
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+    });
+  } catch {
+    throw new Error(`Unable to reach API at ${API_BASE}. Check NEXT_PUBLIC_API_URL and API server status.`);
+  }
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ message: 'Unknown error' }));
@@ -314,6 +336,7 @@ export type UsageSummary = {
   memoryOps: number;
   syncRounds: number;
   storageGb: number;
+  storageGbHours: number;
   bandwidthGb: number;
   periodStart: string;
   periodEnd: string;
@@ -416,6 +439,8 @@ export type ReplicationLink = {
   lagMs: number | null;
   lastSyncAt: string | null;
   createdAt: string;
+  sourceInstance?: { id: string; name: string; status: string };
+  targetInstance?: { id: string; name: string; status: string };
 };
 
 export type Webhook = {

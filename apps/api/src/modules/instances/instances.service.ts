@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
@@ -24,6 +25,7 @@ const TIER_ORDER: InstanceTier[] = ['NANO', 'MICRO', 'SMALL', 'MEDIUM', 'LARGE',
 
 @Injectable()
 export class InstancesService {
+  private readonly logger = new Logger(InstancesService.name);
   private readonly provisionQueue = getQueue(QUEUE_NAMES.PROVISION);
 
   constructor(
@@ -161,9 +163,17 @@ export class InstancesService {
   }
 
   async terminate(id: string, workspaceId: string): Promise<void> {
-    await this.findById(id, workspaceId);
+    const instance = await this.findById(id, workspaceId);
     await this.prisma.instance.update({ where: { id }, data: { status: 'TERMINATING' } });
-    await this.provisionQueue.add(JOB_NAMES.TERMINATE_INSTANCE, { workspaceId, instanceId: id });
+
+    try {
+      await this.kubeService.terminateInstance(instance);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Kubernetes termination failed for instance ${id}: ${message}`);
+    }
+
+    await this.prisma.instance.delete({ where: { id } });
   }
 
   async getConnectionInfo(id: string, workspaceId: string): Promise<ConnectionInfo> {

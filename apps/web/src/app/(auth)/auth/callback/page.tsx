@@ -1,10 +1,11 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect } from 'react';
 import { workspaceApi } from '@/lib/api-client';
 
-export default function OAuthCallbackPage() {
+function OAuthCallbackContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -36,5 +37,18 @@ export default function OAuthCallbackPage() {
     <main className="mx-auto flex min-h-[80vh] w-full max-w-md items-center justify-center px-4 text-sm text-ink-3">
       Completing sign in...
     </main>
+  );
+}
+
+export default function OAuthCallbackPage() {
+  return (
+    <Suspense fallback={(
+      <main className="mx-auto flex min-h-[80vh] w-full max-w-md items-center justify-center px-4 text-sm text-ink-3">
+        Completing sign in...
+      </main>
+    )}
+    >
+      <OAuthCallbackContent />
+    </Suspense>
   );
 }

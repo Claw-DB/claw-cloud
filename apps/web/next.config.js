@@ -4,6 +4,11 @@ const path = require('path');
 const nextConfig = {
   reactStrictMode: true,
   outputFileTracingRoot: path.join(__dirname, '../../'),
+  async rewrites() {
+    return [
+      { source: '/', destination: '/landing.html' },
+    ];
+  },
   async headers() {
     return [
       {

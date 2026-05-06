@@ -22,7 +22,7 @@ export class AdminController {
   async workspaces(
     @Query('search') search?: string,
     @Query('status') status?: 'ACTIVE' | 'SUSPENDED' | 'DELETED',
-    @Query('plan') plan?: 'FREE' | 'STARTER' | 'PRO' | 'ENTERPRISE',
+    @Query('plan') plan?: 'FREE' | 'STARTER' | 'BASIC' | 'PRO' | 'ENTERPRISE',
     @Query('page', new ParseIntPipe({ optional: true })) page?: number,
     @Query('limit', new ParseIntPipe({ optional: true })) limit?: number,
   ) {
