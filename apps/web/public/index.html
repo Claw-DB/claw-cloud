@@ -541,21 +541,23 @@ footer{background:var(--bg);border-top:1px solid var(--border-dk);padding:56px 0
 <section class="hero" id="top">
   <div class="wrap">
     <div class="eyebrow u0">
-      <span class="pill pill-accent">YC S26</span>
+      <span class="pill pill-accent">YC S26 ⏳</span>
       <span class="sep">·</span>
       <span class="live"><span class="live-dot"></span>v0.1.2 · production</span>
       <span class="sep">·</span>
       <span>Open Source</span>
+      <span>Self Hostable</span>
+      <span>Cloud Sync</span>
     </div>
 
     <h1 class="h1 u1">
-      The intelligent <br> memory layer <br> for <em> AI Agents</em><br>
+      The Persistent <br> Cognition System for <br> <em> Autonomous Agents</em><br>
     </h1>
 
     <div class="hero-grid">
       <div class="hero-l u2">
         <p class="sub">
-         ClawDB is the free and open-source <strong>agent-native cognitive database</strong> comprising of semantic memory, state branching, auto-distillation, and encrypted sync built specifically for autonomous AI with minimal config.
+         ClawDB is the free and open-source <strong>agent-native cognitive database</strong> that gives AI agents persistent memory, working state, and self-organizing intelligence across sessions and devices with minimal config.
         </p>
         <div class="cta-row">
           <a href="https://docs.clawdb.dev" class="btn btn-accent" style="font-size:13px;padding:11px 22px">Read The Docs →</a>
@@ -564,7 +566,7 @@ footer{background:var(--bg);border-top:1px solid var(--border-dk);padding:56px 0
         </div>
         <div class="cta-micro" style="margin-top:16px">
           <span>cargo add clawdb</span><span class="sep">·</span>
-          <span>pip install clawdb</span><span class="sep">·</span>
+          <span>npx @clawdb/cli init</span><span class="sep">·</span>
         </div>
 
         <!-- what clawdb replaces -->
@@ -593,11 +595,11 @@ footer{background:var(--bg);border-top:1px solid var(--border-dk);padding:56px 0
           <div class="code-tabs">
             <button class="ctab on" onclick="ctab(this,'ct-ts')">TypeScript</button>
             <button class="ctab" onclick="ctab(this,'ct-py')">Python</button>
-            <button class="ctab" onclick="ctab(this,'ct-rs')">Rust</button>
+            <button class="ctab" onclick="ctab(this,'ct-rs')">Rust Client</button>
+            <button class="ctab" onclick="ctab(this,'ct-go')">Go</button>
+            <button class="ctab" onclick="ctab(this,'ct-oc')">OpenClaw</button>
             <button class="ctab" onclick="ctab(this,'ct-mcp')">Claude / MCP</button>
             <button class="ctab" onclick="ctab(this,'ct-lc')">LangChain</button>
-            <button class="ctab" onclick="ctab(this,'ct-oc')">OpenClaw</button>
-            <button class="ctab" onclick="ctab(this,'ct-go')">Go</button>
             <button class="ctab" onclick="ctab(this,'ct-oai')">OpenAI</button>
           </div>
           <div class="cpane on" id="ct-ts"><pre>
